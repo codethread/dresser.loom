@@ -7,7 +7,9 @@
             [clojure.test :refer [deftest is run-tests testing]]
             [skein.spools.dresser :as dresser]
             [skein.spools.dresser.aspects :as aspects]
-            [skein.spools.dresser.templates :as templates]))
+            [skein.spools.dresser.templates :as templates]
+            [skein.spools.dresser.workflows :as dresser-workflows]
+            [skein.spools.workflow :as workflow]))
 
 (deftest dresser-namespace-loads
   (is (some? dresser/release-version)))
@@ -143,6 +145,152 @@
                                   ["spool-repo/repo-skeleton" :inspect]
                                   str " changed")]
            (aspects/fingerprint topology-a))))))
+
+(defn- aspect-description [aspect-key verify-only]
+  (let [params {:root "/tmp/x" :verify-only verify-only}]
+    (workflow/describe ((dresser-workflows/aspect-workflow aspect-key) params)
+                       params)))
+
+(defn- expected-aspect-dependencies [entry]
+  (let [setup-ids (mapv :id (:setup entry))
+        setup-dependencies (map vector (cons :conflict setup-ids))
+        gate-dependency (or (peek setup-ids) :conflict)]
+    (into {:inspect [] :conflict [:inspect]}
+          (concat (map vector setup-ids setup-dependencies)
+                  (map (fn [{:keys [id]}] [id [gate-dependency]])
+                       (:gates entry))))))
+
+(deftest aspect-workflows-describe-both-modes
+  (doseq [[aspect-key entry] aspects/registry]
+    (testing aspect-key
+      (let [setup-description (aspect-description aspect-key false)
+            verify-description (aspect-description aspect-key true)
+            setup-steps (:steps setup-description)
+            verify-steps (:steps verify-description)
+            setup-ids (mapv :id (:setup entry))
+            gate-ids (mapv :id (:gates entry))
+            expected-ids (into [:inspect :conflict] (concat setup-ids gate-ids))
+            dependencies (expected-aspect-dependencies entry)]
+        (is (= expected-ids (mapv :id setup-steps)))
+        (is (= dependencies
+               (into {} (map (juxt :id :depends-on)) setup-steps)))
+        (is (= "checkpoint" (:kind (second setup-steps))))
+        (is (= (set gate-ids)
+               (into #{} (keep #(when (= "shell" (:gate %)) (:id %)))
+                     setup-steps)))
+        (is (= gate-ids (mapv :id verify-steps)))
+        (is (every? (comp empty? :depends-on) verify-steps))
+        (is (every? #(= "shell" (:gate %)) verify-steps))))))
+
+(deftest conflict-checkpoint-declares-policy-inputs
+  (let [checkpoint (-> (aspect-description "spool-repo/repo-skeleton" false)
+                       :steps
+                       second)
+        choices (into {} (map (juxt :key identity)) (:choices checkpoint))]
+    (is (= "conflict" (name (:id checkpoint))))
+    (is (= #{"clean" "apply-plan" "abort"} (set (keys choices))))
+    (is (nil? (:input (choices "clean"))))
+    (is (= [{"key" "decisions"
+             "required" true
+             "description" "Summary of per-file keep/merge/replace decisions."}]
+           (:input (choices "apply-plan"))))
+    (is (= ":dresser/abort" (:next (choices "abort"))))
+    (is (= "reason" (get-in choices ["abort" :input 0 "key"])))
+    (is (true? (get-in choices ["abort" :input 0 "required"])))))
+
+(defn- compiled-step-map [constructor params]
+  (let [payload (workflow/compile (constructor params) params)]
+    (into {} (map (juxt :ref identity)) (rest (:strands payload)))))
+
+(deftest aspect-workflows-compile-required-attributes
+  (doseq [[aspect-key entry] aspects/registry
+          :let [[flavour] (str/split aspect-key #"/" 2)
+                params {:root "/tmp/x" :verify-only false}
+                strands (compiled-step-map
+                         (dresser-workflows/aspect-workflow aspect-key)
+                         params)
+                expected-common {"dresser/flavour" flavour
+                                 "dresser/aspect" aspect-key
+                                 "dresser/version" (:version entry)
+                                 "dresser/root" "/tmp/x"}]]
+    (testing aspect-key
+      (doseq [{:keys [attributes]} (vals strands)]
+        (is (= expected-common (select-keys attributes (keys expected-common)))))
+      (is (str/includes? (get-in strands [:inspect :attributes "workflow/instruction"])
+                         "Target root: /tmp/x"))
+      (doseq [{:keys [id templates]} (:setup entry)]
+        (let [instruction (get-in strands [id :attributes "workflow/instruction"])]
+          (is (str/includes? instruction "Target root: /tmp/x"))
+          (doseq [template-key templates]
+            (is (str/includes? instruction template-key)))))
+      (is (= "conflict-policy"
+             (get-in strands [:conflict :attributes "workflow/decision-point"])))
+      (doseq [{:keys [id argv timeout-secs]} (:gates entry)]
+        (is (= {"workflow/gate" "shell"
+                "shell/argv" argv
+                "shell/cwd" "/tmp/x"
+                "shell/timeout-secs" timeout-secs}
+               (select-keys (get-in strands [id :attributes])
+                            ["workflow/gate"
+                             "shell/argv"
+                             "shell/cwd"
+                             "shell/timeout-secs"])))))))
+
+(deftest flavour-workflow-describes-full-and-selected-aspects
+  (let [constructor (dresser-workflows/flavour-workflow "spool-repo")
+        full-params {:root "/tmp/x"}
+        full (workflow/describe (constructor full-params) full-params)
+        subset-params {:root "/tmp/x"
+                       :aspects ["spool-repo/skein-workspace"]}
+        subset (workflow/describe (constructor subset-params) subset-params)
+        verify-params (assoc subset-params :verify-only true)
+        verify (workflow/describe (constructor verify-params) verify-params)
+        full-gates (into #{} (keep #(when (= "shell" (:gate %)) (:id %)))
+                         (:steps full))
+        subset-gates (into #{} (keep #(when (= "shell" (:gate %)) (:id %)))
+                           (:steps subset))
+        expected-full (into #{}
+                            (mapcat (fn [aspect-key]
+                                      (let [prefix (second (str/split aspect-key #"/" 2))]
+                                        (map #(keyword (str prefix "--" (name (:id %))))
+                                             (:gates (aspects/aspect aspect-key))))))
+                            (aspects/flavour-aspects "spool-repo"))]
+    (is (= expected-full full-gates))
+    (is (= #{:skein-workspace--workspace-files} subset-gates))
+    (is (= #{:skein-workspace--workspace-files :skein-workspace}
+           (set (map :id (:steps verify)))))
+    (is (= #{:skein-workspace--inspect
+             :skein-workspace--conflict
+             :skein-workspace--write-workspace
+             :skein-workspace--workspace-files
+             :skein-workspace}
+           (set (map :id (:steps subset)))))
+    (let [payload (workflow/compile (constructor subset-params) subset-params)
+          root (first (:strands payload))
+          gate (some #(when (= :skein-workspace--workspace-files (:ref %)) %)
+                     (:strands payload))]
+      (is (= {"dresser/flavour" "spool-repo"
+              "dresser/root" "/tmp/x"}
+             (select-keys (:attributes root)
+                          ["dresser/flavour" "dresser/root"])))
+      (is (= "/tmp/x" (get-in gate [:attributes "shell/cwd"]))))))
+
+(deftest topology-is-deterministic-and-release-is-pinned
+  (let [topology (dresser-workflows/describe-topology)]
+    (is (= (sort (keys aspects/registry)) (vec (keys topology))))
+    (doseq [[_ modes] topology]
+      (is (= #{:setup :verify-only} (set (keys modes))))
+      (is (seq (get-in modes [:setup :steps])))
+      (is (every? #(= "step" (:kind %))
+                  (get-in modes [:verify-only :steps]))))
+    (is (= (aspects/releases aspects/release-version)
+           (aspects/fingerprint topology))
+        "bump the aspect version AND release-version, then re-pin releases")))
+
+(deftest dresser-workflows-register-stable-names
+  (is (= (set (keys dresser-workflows/workflow-definitions))
+         (set (keys (dresser-workflows/register-workflows!)))))
+  (is (= 10 (count dresser-workflows/workflow-definitions))))
 
 (defn -main
   "Run the standalone dresser.spool test suite."

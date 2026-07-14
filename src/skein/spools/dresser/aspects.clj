@@ -11,8 +11,8 @@
   1)
 
 (def releases
-  "Published release fingerprints. Task 3 pins release 1 after workflow topology exists."
-  {})
+  "Published release fingerprints. Historical entries are immutable."
+  {1 "28f68641cd4e9d59c547db745e8e9633b93ded521015fadcb5d77c65aeb87f58"})
 
 (def ^:private conflict-discipline
   "Honor the recorded conflict decisions for every owned file: keep preserves the customization, merge reconciles it with the canonical template, and replace uses the canonical template.")
