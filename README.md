@@ -34,7 +34,7 @@ and a pinned dresser release can use:
   {:local/root "/path/to/skein/spools/workflow"}
 
   codethread/dresser
-  {:git/url "git@github.com:codethread/dresser.spool.git"
+  {:git/url "git@github.com:codethread/dresser.loom.git"
    :git/sha "<40-hex-sha-for-the-approved-commit>"}}}
 ```
 
