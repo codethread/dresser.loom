@@ -110,7 +110,8 @@
 
 (deftest static-reference-template-is-exact
   (is (= "{\"configFormat\":\"alpha\"}\n"
-         (templates/template "skein/config.json"))))
+         (templates/template "skein/config.json")))
+  (is (str/includes? (templates/template "skein/gitignore") ".cpcache/\n")))
 
 (deftest template-lookups-fail-with-data
   (let [unknown (thrown-data #(templates/template "not-a-template"))
@@ -202,11 +203,16 @@
 (defn- expected-aspect-dependencies [entry]
   (let [setup-ids (mapv :id (:setup entry))
         setup-dependencies (map vector (cons :conflict setup-ids))
-        gate-dependency (or (peek setup-ids) :conflict)]
+        gate-ids (mapv :id (:gates entry))
+        gate-dependencies (map vector
+                               (cons (or (peek setup-ids) :conflict) gate-ids))]
     (into {:inspect [] :conflict [:inspect]}
           (concat (map vector setup-ids setup-dependencies)
-                  (map (fn [{:keys [id]}] [id [gate-dependency]])
-                       (:gates entry))))))
+                  (map vector gate-ids gate-dependencies)))))
+
+(defn- expected-verify-dependencies [gate-ids]
+  (into {}
+        (map vector gate-ids (cons [] (map vector gate-ids)))))
 
 (deftest aspect-workflows-describe-both-modes
   (doseq [[aspect-key entry] aspects/registry]
@@ -227,7 +233,8 @@
                (into #{} (keep #(when (= "shell" (:gate %)) (:id %)))
                      setup-steps)))
         (is (= gate-ids (mapv :id verify-steps)))
-        (is (every? (comp empty? :depends-on) verify-steps))
+        (is (= (expected-verify-dependencies gate-ids)
+               (into {} (map (juxt :id :depends-on)) verify-steps)))
         (is (every? #(= "shell" (:gate %)) verify-steps))))))
 
 (deftest conflict-checkpoint-declares-policy-inputs

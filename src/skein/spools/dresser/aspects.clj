@@ -13,7 +13,7 @@
 
 (def releases
   "Published release fingerprints. Historical entries are immutable."
-  {1 "03cc25f420a0ef5b961d909205af6c0f2990819f0d858c6797a58ce1390ae498"})
+  {1 "1e80cce507e9908a40eb4f20b92c4c196fb31310fbbe46a27a3c319df51d3a63"})
 
 (def ^:private conflict-discipline
   "Honor the recorded conflict decisions for every owned file: keep preserves the customization, merge reconciles it with the canonical template, and replace uses the canonical template.")

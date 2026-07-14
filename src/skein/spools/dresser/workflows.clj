@@ -79,18 +79,22 @@
            (:setup entry))))
 
 (defn- gate-steps [entry dependency attributes]
-  (mapv (fn [{:keys [id title argv timeout-secs]}]
-          (workflow/gate
-           id
-           title
-           :shell
-           :depends-on [dependency]
-           :attributes (assoc attributes
-                              "dresser/gate-id" (name id)
-                              "shell/argv" argv
-                              "shell/cwd" (param-value :root)
-                              "shell/timeout-secs" timeout-secs)))
-        (:gates entry)))
+  (second
+   (reduce (fn [[gate-dependency steps] {:keys [id title argv timeout-secs]}]
+             [id
+              (conj steps
+                    (workflow/gate
+                     id
+                     title
+                     :shell
+                     :depends-on [gate-dependency]
+                     :attributes (assoc attributes
+                                        "dresser/gate-id" (name id)
+                                        "shell/argv" argv
+                                        "shell/cwd" (param-value :root)
+                                        "shell/timeout-secs" timeout-secs)))])
+           [dependency []]
+           (:gates entry))))
 
 (defn aspect-workflow
   "Return the one-argument workflow constructor for `aspect-key`."

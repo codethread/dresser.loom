@@ -31,7 +31,8 @@
        skein-init-minimal))
 
 (def skein-gitignore
-  (str "config.local.json\n"
+  (str ".cpcache/\n"
+       "config.local.json\n"
        "init.local.clj\n"
        "spools.local.edn\n"
        "state/\n"
