@@ -3,10 +3,10 @@
   driven from an operator weaver world against a target repo path.
 
   Contract: dresser.md (SPEC-Dresser-001 while in feature staging). Public
-  functions take the runtime explicitly per the shared-spool rules.")
+  functions take the runtime explicitly per the shared-spool rules."
+  (:require [skein.spools.dresser.aspects :as aspects]))
 
 (def release-version
-  "Monotonic release integer for the aspect registry as a whole. Bumped
-  whenever any aspect version bumps; recorded in target receipts as the
-  provenance anchor `plan` compares against."
-  1)
+  "Compatibility alias; the aspect registry is the single source of truth.
+  Task 5 may remove this alias while expanding the public spool surface."
+  aspects/release-version)

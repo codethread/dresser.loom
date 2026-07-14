@@ -7,7 +7,7 @@ tasks:
   - id: 2
     description: Aspect registry with fingerprint inputs and id tables
     task_file: tasks/002-aspect-registry.md
-    status: pending
+    status: complete
     blocked_by: [1]
   - id: 3
     description: Workflow compiler, topology, release pinning and drift alarm

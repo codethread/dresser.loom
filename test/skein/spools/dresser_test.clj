@@ -6,6 +6,7 @@
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is run-tests testing]]
             [skein.spools.dresser :as dresser]
+            [skein.spools.dresser.aspects :as aspects]
             [skein.spools.dresser.templates :as templates]))
 
 (deftest dresser-namespace-loads
@@ -76,6 +77,72 @@
           [line-number line] (map-indexed vector (str/split-lines content))]
     (testing (str template-name ":" (inc line-number))
       (is (<= (count line) 180)))))
+
+(def expected-aspect-ids
+  {"spool-repo/repo-skeleton"
+   {:setup [:write-deps :write-src-test :write-readme :write-gitignore]
+    :gates [:test-suite :readme-sections]}
+   "spool-repo/skein-workspace"
+   {:setup [:write-workspace] :gates [:workspace-files]}
+   "spool-repo/agent-docs"
+   {:setup [:write-agents-md] :gates [:agents-md]}
+   "spool-repo/quality"
+   {:setup [:write-quality-config :write-makefile] :gates [:fmt-check :lint]}
+   "skein-dir/workspace"
+   {:setup [:write-workspace] :gates [:workspace-files :init-header]}
+   "skein-dir/quality"
+   {:setup [:write-quality-tooling] :gates [:fmt-check :lint]}
+   "skein-dir/agent-docs"
+   {:setup [:write-agent-docs] :gates [:agent-docs-files]}})
+
+(deftest v1-aspect-registry-is-valid
+  (is (= (set (keys expected-aspect-ids)) (set (keys aspects/registry))))
+  (doseq [[aspect-key entry] aspects/registry
+          :let [[_ flavour aspect-name] (re-matches #"([^/]+)/([^/]+)" aspect-key)]]
+    (testing aspect-key
+      (is (#{"spool-repo" "skein-dir"} flavour))
+      (is (some? aspect-name))
+      (is (integer? (:version entry)))
+      (is (= (get expected-aspect-ids aspect-key)
+             {:setup (mapv :id (:setup entry))
+              :gates (mapv :id (:gates entry))}))
+      (doseq [dep (:deps entry)]
+        (is (contains? aspects/registry dep))
+        (is (str/starts-with? dep (str flavour "/"))))
+      (doseq [template-name (mapcat :templates (:setup entry))]
+        (is (contains? templates/templates template-name)))
+      (doseq [gate (:gates entry)]
+        (is (vector? (:argv gate)))
+        (is (every? string? (:argv gate)))))))
+
+(deftest aspect-ordering-and-dependency-closure
+  (let [spool-order (aspects/flavour-aspects "spool-repo")
+        skein-order (aspects/flavour-aspects "skein-dir")]
+    (is (< (.indexOf spool-order "spool-repo/repo-skeleton")
+           (.indexOf spool-order "spool-repo/quality")))
+    (is (< (.indexOf skein-order "skein-dir/workspace")
+           (.indexOf skein-order "skein-dir/quality")))
+    (is (< (.indexOf skein-order "skein-dir/workspace")
+           (.indexOf skein-order "skein-dir/agent-docs"))))
+  (is (= ["spool-repo/repo-skeleton" "spool-repo/quality"]
+         (aspects/close-under-deps "spool-repo" ["spool-repo/quality"])))
+  (is (= "missing" (:aspect (thrown-data
+                              #(aspects/close-under-deps "spool-repo" ["missing"])))))
+  (is (= "missing" (:aspect (thrown-data #(aspects/aspect "missing"))))))
+
+(deftest material-fingerprint-is-stable-and-sensitive
+  (let [topology-a (array-map :b 2 :a 1)
+        topology-b (array-map :a 1 :b 2)
+        baseline (aspects/fingerprint topology-a)]
+    (is (= baseline (aspects/fingerprint topology-b)))
+    (is (not= baseline (aspects/fingerprint {:a 1 :b 3})))
+    (is (not=
+         baseline
+         (with-redefs [aspects/registry
+                       (update-in aspects/registry
+                                  ["spool-repo/repo-skeleton" :inspect]
+                                  str " changed")]
+           (aspects/fingerprint topology-a))))))
 
 (defn -main
   "Run the standalone dresser.spool test suite."
