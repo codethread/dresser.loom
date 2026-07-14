@@ -1,4 +1,6 @@
-.PHONY: fmt fmt-check lint test
+.PHONY: all fmt fmt-check lint test
+
+all: fmt-check lint test
 
 fmt:
 	clojure -M:format/fix

@@ -146,8 +146,16 @@
    "skein-dir/agent-docs"
    {:setup [:write-agent-docs] :gates [:agent-docs-files]}})
 
-(deftest v1-aspect-registry-is-valid
+(deftest aspect-registry-is-valid
   (is (= (set (keys expected-aspect-ids)) (set (keys aspects/registry))))
+  (is (= {"spool-repo/repo-skeleton" 2
+          "spool-repo/skein-workspace" 2
+          "spool-repo/agent-docs" 1
+          "spool-repo/quality" 2
+          "skein-dir/workspace" 2
+          "skein-dir/quality" 2
+          "skein-dir/agent-docs" 1}
+         (into {} (map (fn [[key entry]] [key (:version entry)])) aspects/registry)))
   (doseq [[aspect-key entry] aspects/registry
           :let [[_ flavour aspect-name] (re-matches #"([^/]+)/([^/]+)" aspect-key)]]
     (testing aspect-key
@@ -343,6 +351,25 @@
     (is (= (aspects/releases aspects/release-version)
            (aspects/fingerprint topology))
         "bump the aspect version AND release-version, then re-pin releases")))
+
+(deftest release-lineage-preserves-v1-receipt-classification
+  (let [release-one "03cc25f420a0ef5b961d909205af6c0f2990819f0d858c6797a58ce1390ae498"
+        registry-view {:release aspects/release-version
+                       :fingerprint (aspects/releases aspects/release-version)
+                       :releases aspects/releases
+                       :aspects (into {} (map (fn [[key entry]]
+                                                [key (:version entry)]))
+                                      aspects/registry)}
+        receipt {:dresser/release 1
+                 :dresser/fingerprint release-one
+                 :aspects {"spool-repo/repo-skeleton"
+                           {:version 1 :release 1 :applied-at "2026-07-14"}
+                           "spool-repo/agent-docs"
+                           {:version 1 :release 1 :applied-at "2026-07-14"}}}
+        classification (receipt/plan-classification receipt registry-view)]
+    (is (= release-one (get aspects/releases 1)))
+    (is (= :pending (get classification "spool-repo/repo-skeleton")))
+    (is (= :current (get classification "spool-repo/agent-docs")))))
 
 (deftest dresser-workflows-register-stable-names
   (is (= (set (keys dresser-workflows/workflow-definitions))
@@ -601,6 +628,7 @@
             (is (every? #{:new} (vals (:aspects fresh))))
             (is (= :unstamped (get-in fresh [:provenance :verdict]))))
           (let [aspect-key "spool-repo/repo-skeleton"
+                aspect-version (get-in aspects/registry [aspect-key :version])
                 fingerprint (aspects/releases aspects/release-version)]
             (receipt/write-receipt!
              root
@@ -616,7 +644,7 @@
              root
              {:dresser/release aspects/release-version
               :dresser/fingerprint fingerprint
-              :aspects {aspect-key {:version 1
+              :aspects {aspect-key {:version aspect-version
                                     :release aspects/release-version
                                     :applied-at "2026-07-14"}}})
             (let [known (weaver/op! runtime 'dresser ["plan" (str root)])]
@@ -626,7 +654,7 @@
              root
              {:dresser/release aspects/release-version
               :dresser/fingerprint "forked"
-              :aspects {aspect-key {:version 1
+              :aspects {aspect-key {:version aspect-version
                                     :release aspects/release-version
                                     :applied-at "2026-07-14"}}})
             (let [divergent (weaver/op! runtime 'dresser ["plan" (str root)])]
@@ -636,7 +664,7 @@
              root
              {:dresser/release aspects/release-version
               :dresser/fingerprint fingerprint
-              :aspects {aspect-key {:version 2
+              :aspects {aspect-key {:version (inc aspect-version)
                                     :release aspects/release-version
                                     :applied-at "2026-07-14"}}})
             (is (= :ahead
@@ -646,7 +674,7 @@
              root
              {:dresser/release (inc aspects/release-version)
               :dresser/fingerprint "future"
-              :aspects {aspect-key {:version 1
+              :aspects {aspect-key {:version aspect-version
                                     :release (inc aspects/release-version)
                                     :applied-at "2026-07-14"}}})
             (let [ahead (weaver/op! runtime 'dresser ["plan" (str root)])]

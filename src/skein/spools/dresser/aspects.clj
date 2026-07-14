@@ -9,11 +9,12 @@
 
 (def release-version
   "Monotonic release for the complete aspect registry."
-  1)
+  2)
 
 (def releases
   "Published release fingerprints. Historical entries are immutable."
-  {1 "1e80cce507e9908a40eb4f20b92c4c196fb31310fbbe46a27a3c319df51d3a63"})
+  {1 "03cc25f420a0ef5b961d909205af6c0f2990819f0d858c6797a58ce1390ae498"
+   2 "13bc922fb126113db697af8bf825c83fe0908a92536e7e7d9c983f6d39d282b3"})
 
 (def ^:private conflict-discipline
   "Honor the recorded conflict decisions for every owned file: keep preserves the customization, merge reconciles it with the canonical template, and replace uses the canonical template.")
@@ -25,9 +26,9 @@
    :templates template-keys})
 
 (def registry
-  "The seven v1 dresser aspects, keyed by <flavour>/<aspect>."
+  "The seven versioned dresser aspects, keyed by <flavour>/<aspect>."
   {"spool-repo/repo-skeleton"
-   {:version 1
+   {:version 2
     :deps []
     :owned ["deps.edn"
             "src/skein/spools/<name>.clj"
@@ -57,7 +58,7 @@
              :timeout-secs 30}]}
 
    "spool-repo/skein-workspace"
-   {:version 1
+   {:version 2
     :deps []
     :owned [".skein/config.json" ".skein/spools.edn" ".skein/init.clj" ".skein/.gitignore"]
     :inspect "Compare the .skein bootstrap quartet with the canonical templates, record findings, and record a keep/merge/replace decision for each conflict."
@@ -83,7 +84,7 @@
              :timeout-secs 30}]}
 
    "spool-repo/quality"
-   {:version 1
+   {:version 2
     :deps ["spool-repo/repo-skeleton"]
     :owned [".cljfmt.edn" ".splint.edn" "deps.edn" "Makefile"]
     :inspect "Compare the quality configuration, deps.edn aliases, and Makefile with the canonical templates, record findings, and record a keep/merge/replace decision for each conflict."
@@ -103,7 +104,7 @@
              :timeout-secs 600}]}
 
    "skein-dir/workspace"
-   {:version 1
+   {:version 2
     :deps []
     :owned [".skein/config.json" ".skein/spools.edn" ".skein/init.clj" ".skein/.gitignore"]
     :inspect "Compare the self-contained .skein workspace with the layered canonical templates, record richer existing files as conflicts, and record a keep/merge/replace decision for each conflict."
@@ -120,7 +121,7 @@
              :timeout-secs 30}]}
 
    "skein-dir/quality"
-   {:version 1
+   {:version 2
     :deps ["skein-dir/workspace"]
     :owned [".skein/deps.edn" ".skein/Makefile"]
     :inspect "Compare workspace-local quality tooling with the canonical templates, record findings, and record a keep/merge/replace decision for each conflict."
