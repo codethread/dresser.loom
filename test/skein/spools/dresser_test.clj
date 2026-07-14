@@ -13,6 +13,7 @@
             [skein.core.weaver.runtime :as weaver-runtime]
             [skein.spools.dresser :as dresser]
             [skein.spools.dresser.aspects :as aspects]
+            [skein.spools.dresser-edges-test]
             [skein.spools.dresser-fixtures :as fixtures]
             [skein.spools.dresser.receipt :as receipt]
             [skein.spools.dresser.target :as target]
@@ -753,5 +754,6 @@
 (defn -main
   "Run the standalone dresser.spool test suite."
   [& _args]
-  (let [summary (run-tests 'skein.spools.dresser-test)]
+  (let [summary (run-tests 'skein.spools.dresser-test
+                           'skein.spools.dresser-edges-test)]
     (System/exit (if (pos? (+ (:fail summary) (:error summary))) 1 0))))

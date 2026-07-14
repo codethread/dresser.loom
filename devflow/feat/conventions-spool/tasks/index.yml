@@ -32,7 +32,7 @@ tasks:
   - id: 7
     description: Contract-edge e2e test matrix and the spool-repo e2e
     task_file: tasks/007-e2e-contract-edges.md
-    status: pending
+    status: complete
     blocked_by: [6]
   - id: 8
     description: Self-hosting quality pass and shipping docs

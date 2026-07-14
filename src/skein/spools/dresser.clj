@@ -178,7 +178,13 @@
 (defn advance!
   "Advance a setup run, or verify run when verify? is true."
   [flavour root verify? opts]
-  (workflow/advance! (addressed-run-id flavour root verify?) opts))
+  (workflow/advance! (addressed-run-id flavour root verify?)
+                     (assoc opts :by "dresser")))
+
+(defn- keywordize-input [input]
+  (into {}
+        (map (fn [[key value]] [(keyword (name key)) value]))
+        (or input {})))
 
 (defn- attr [strand key]
   (spool/attr-get strand key))
@@ -336,7 +342,7 @@
                          (:verify args)
                          (cond-> {}
                            (contains? args :choice) (assoc :choice (:choice args))
-                           (contains? args :input) (assoc :input (:input args))
+                           (contains? args :input) (assoc :input (keywordize-input (:input args)))
                            (contains? args :notes) (assoc :notes (:notes args))
                            (contains? args :step) (assoc :step (:step args))))
     "stamp" (stamp! (:aspect args) (:root args))))
