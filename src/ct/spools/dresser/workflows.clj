@@ -1,9 +1,9 @@
-(ns skein.spools.dresser.workflows
+(ns ct.spools.dresser.workflows
   "Workflow constructors compiled from the versioned dresser aspect registry."
   (:require [clojure.string :as str]
             [skein.api.spool.alpha :as spool]
-            [skein.spools.dresser.aspects :as aspects]
-            [skein.spools.dresser.specs :as specs]
+            [ct.spools.dresser.aspects :as aspects]
+            [ct.spools.dresser.specs :as specs]
             [skein.spools.workflow :as workflow]))
 
 (defn- aspect-parts [aspect-key]
@@ -213,23 +213,23 @@
 
 (def workflow-definitions
   "Stable registered workflow names and their resolvable constructors."
-  {:dresser/spool-repo 'skein.spools.dresser.workflows/spool-repo-workflow
-   :dresser/skein-dir 'skein.spools.dresser.workflows/skein-dir-workflow
-   :dresser/abort 'skein.spools.dresser.workflows/abort-workflow
+  {:dresser/spool-repo 'ct.spools.dresser.workflows/spool-repo-workflow
+   :dresser/skein-dir 'ct.spools.dresser.workflows/skein-dir-workflow
+   :dresser/abort 'ct.spools.dresser.workflows/abort-workflow
    :dresser/spool-repo.repo-skeleton
-   'skein.spools.dresser.workflows/spool-repo-repo-skeleton-workflow
+   'ct.spools.dresser.workflows/spool-repo-repo-skeleton-workflow
    :dresser/spool-repo.skein-workspace
-   'skein.spools.dresser.workflows/spool-repo-skein-workspace-workflow
+   'ct.spools.dresser.workflows/spool-repo-skein-workspace-workflow
    :dresser/spool-repo.agent-docs
-   'skein.spools.dresser.workflows/spool-repo-agent-docs-workflow
+   'ct.spools.dresser.workflows/spool-repo-agent-docs-workflow
    :dresser/spool-repo.quality
-   'skein.spools.dresser.workflows/spool-repo-quality-workflow
+   'ct.spools.dresser.workflows/spool-repo-quality-workflow
    :dresser/skein-dir.workspace
-   'skein.spools.dresser.workflows/skein-dir-workspace-workflow
+   'ct.spools.dresser.workflows/skein-dir-workspace-workflow
    :dresser/skein-dir.quality
-   'skein.spools.dresser.workflows/skein-dir-quality-workflow
+   'ct.spools.dresser.workflows/skein-dir-quality-workflow
    :dresser/skein-dir.agent-docs
-   'skein.spools.dresser.workflows/skein-dir-agent-docs-workflow})
+   'ct.spools.dresser.workflows/skein-dir-agent-docs-workflow})
 
 (defn register-workflows!
   "Register all dresser umbrella, abort, and aspect workflows."

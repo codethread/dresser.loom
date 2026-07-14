@@ -1,4 +1,4 @@
-(ns skein.spools.dresser
+(ns ct.spools.dresser
   "Convention-convergence spool: versioned per-aspect setup/verify workflows
   driven from an operator weaver world against a target repo path."
   (:require [clojure.string :as str]
@@ -8,12 +8,12 @@
             [skein.api.spool.alpha :as spool]
             [skein.api.vocab.alpha :as vocab]
             [skein.api.weaver.alpha :as weaver]
-            [skein.spools.dresser.aspects :as aspects]
-            [skein.spools.dresser.receipt :as receipt]
-            [skein.spools.dresser.specs :as specs]
-            [skein.spools.dresser.target :as target]
-            [skein.spools.dresser.templates :as templates]
-            [skein.spools.dresser.workflows :as dresser-workflows]
+            [ct.spools.dresser.aspects :as aspects]
+            [ct.spools.dresser.receipt :as receipt]
+            [ct.spools.dresser.specs :as specs]
+            [ct.spools.dresser.target :as target]
+            [ct.spools.dresser.templates :as templates]
+            [ct.spools.dresser.workflows :as dresser-workflows]
             [skein.spools.workflow :as workflow])
   (:import (java.io FileNotFoundException)
            (java.time LocalDate)))
@@ -421,8 +421,8 @@
                   :arg-spec dresser-arg-spec
                   :hook-class :mutating}]
     (if (op-registered? runtime 'dresser)
-      (weaver/replace-op! runtime 'dresser metadata 'skein.spools.dresser/dresser-op)
-      (weaver/register-op! runtime 'dresser metadata 'skein.spools.dresser/dresser-op))))
+      (weaver/replace-op! runtime 'dresser metadata 'ct.spools.dresser/dresser-op)
+      (weaver/register-op! runtime 'dresser metadata 'ct.spools.dresser/dresser-op))))
 
 (defn install!
   "Install dresser vocabulary, workflows, and declared-subcommand op."
@@ -430,7 +430,7 @@
   (check-prereqs! requiring-resolve (workflow/registered-executors))
   (let [runtime (current/runtime)]
     {:installed true
-     :namespace 'skein.spools.dresser
+     :namespace 'ct.spools.dresser
      :vocab (vocab/declare! runtime
                             {:kind :attr-namespace
                              :name "dresser"

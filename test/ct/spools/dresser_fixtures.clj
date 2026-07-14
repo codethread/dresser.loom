@@ -1,4 +1,4 @@
-(ns skein.spools.dresser-fixtures
+(ns ct.spools.dresser-fixtures
   "Filesystem and workflow-driving helpers for dresser's disposable-world e2e tests."
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
@@ -10,10 +10,10 @@
             [skein.api.spool.alpha :as spool]
             [skein.api.weaver.alpha :as weaver]
             [skein.core.weaver.runtime :as weaver-runtime]
-            [skein.spools.dresser :as dresser]
-            [skein.spools.dresser.receipt :as receipt]
-            [skein.spools.dresser.target :as target]
-            [skein.spools.dresser.templates :as templates]
+            [ct.spools.dresser :as dresser]
+            [ct.spools.dresser.receipt :as receipt]
+            [ct.spools.dresser.target :as target]
+            [ct.spools.dresser.templates :as templates]
             [skein.spools.executors.shell :as shell-executor]
             [skein.spools.workflow :as workflow]
             [skein.test.alpha :as t])
@@ -128,9 +128,9 @@
 
       "Write source and test"
       (do
-        (write-template! root (str "src/skein/spools/" ns-path ".clj")
+        (write-template! root (str "src/ct/spools/" ns-path ".clj")
                          "spool-repo/src-ns.clj" params)
-        (write-template! root (str "test/skein/spools/" ns-path "_test.clj")
+        (write-template! root (str "test/ct/spools/" ns-path "_test.clj")
                          "spool-repo/test-main.clj" params))
 
       "Write README"

@@ -23,8 +23,8 @@ Deliver `dresser.spool`: a distributable spool implementing SPEC-Dresser-001 —
 
 | ID | Area | Expected change |
 | --- | --- | --- |
-| PLAN-Dresser-001.AA1 | `src/skein/spools/dresser*` (this repo, new) | Spool implementation: templates, registry, workflows, ops |
-| PLAN-Dresser-001.AA2 | `test/skein/spools/*` (this repo, new) | Standalone suite with `-main`, run via `clojure -M:test` |
+| PLAN-Dresser-001.AA1 | `src/ct/spools/dresser*` (this repo, new) | Spool implementation: templates, registry, workflows, ops |
+| PLAN-Dresser-001.AA2 | `test/ct/spools/*` (this repo, new) | Standalone suite with `-main`, run via `clojure -M:test` |
 | PLAN-Dresser-001.AA3 | Repo root (this repo, new) | deps.edn, README, AGENTS.md, Makefile, `.skein/` quartet, `.cljfmt.edn`/`.splint.edn` — the repo eats its own `spool-repo` flavour |
 | PLAN-Dresser-001.AA4 | skein-src `spools/README.md` | One index row for the external spool (at land) |
 | PLAN-Dresser-001.AA5 | `~/dev/projects/kanban.spool`, `~/dev/projects/notes` | Adoption-exercise changes, left for owner review (branch / uncommitted) |

@@ -1,6 +1,6 @@
 # Dresser convention spool
 
-This document defines the contract of `skein.spools.dresser`. Dresser runs in
+This document defines the contract of `ct.spools.dresser`. Dresser runs in
 an operator's weaver world and treats a target repository as a canonical
 absolute path. The target needs no Skein configuration of its own. It must
 already exist and be a git worktree root.

@@ -1,4 +1,4 @@
-(ns skein.spools.dresser.specs
+(ns ct.spools.dresser.specs
   "Named boundary-data specs shared across dresser's public seams."
   (:require [clojure.spec.alpha :as s]
             [clojure.string :as str]))

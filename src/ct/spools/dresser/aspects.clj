@@ -1,20 +1,21 @@
-(ns skein.spools.dresser.aspects
+(ns ct.spools.dresser.aspects
   "Versioned convention aspects and their material lineage data."
   (:require [clojure.string :as str]
             [skein.api.spool.alpha :as spool]
-            [skein.spools.dresser.specs :as specs]
-            [skein.spools.dresser.templates :as templates])
+            [ct.spools.dresser.specs :as specs]
+            [ct.spools.dresser.templates :as templates])
   (:import (java.nio.charset StandardCharsets)
            (java.security MessageDigest)))
 
 (def release-version
   "Monotonic release for the complete aspect registry."
-  2)
+  3)
 
 (def releases
   "Published release fingerprints. Historical entries are immutable."
   {1 "03cc25f420a0ef5b961d909205af6c0f2990819f0d858c6797a58ce1390ae498"
-   2 "13bc922fb126113db697af8bf825c83fe0908a92536e7e7d9c983f6d39d282b3"})
+   2 "13bc922fb126113db697af8bf825c83fe0908a92536e7e7d9c983f6d39d282b3"
+   3 "3241b836a15e41a30428db2d09df9b24a4570abb1f273c50f898dc2b19ca1f89"})
 
 (def ^:private conflict-discipline
   "Honor the recorded conflict decisions for every owned file: keep preserves the customization, merge reconciles it with the canonical template, and replace uses the canonical template.")
@@ -28,11 +29,11 @@
 (def registry
   "The seven versioned dresser aspects, keyed by <flavour>/<aspect>."
   {"spool-repo/repo-skeleton"
-   {:version 2
+   {:version 3
     :deps []
     :owned ["deps.edn"
-            "src/skein/spools/<name>.clj"
-            "test/skein/spools/<name>_test.clj"
+            "src/ct/spools/<name>.clj"
+            "test/ct/spools/<name>_test.clj"
             "README.md"
             ".gitignore"]
     :inspect "Compare every owned file with the canonical templates, record findings, and record a keep/merge/replace decision for each conflict."

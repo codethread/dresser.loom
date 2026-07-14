@@ -1,6 +1,6 @@
 # dresser.spool
 
-`skein.spools.dresser` converges repository conventions through versioned
+`ct.spools.dresser` converges repository conventions through versioned
 Skein workflows. An operator drives setup work against a target git root;
 shell gates verify the result; an explicit stamp writes the checked-in receipt
 at `.skein/conventions.edn`.
@@ -83,9 +83,9 @@ executor, and dresser in that order:
 
 (runtime/use! runtime
   :dresser
-  {:ns 'skein.spools.dresser
+  {:ns 'ct.spools.dresser
    :spools ['codethread/dresser]
-   :call 'skein.spools.dresser/install!
+   :call 'ct.spools.dresser/install!
    :after [:workflow :shell-executor]
    :required? true})
 ```

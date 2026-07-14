@@ -1,5 +1,5 @@
-(ns skein.spools.dresser-test
-  "Tests for the skein.spools.dresser convention-convergence spool: template
+(ns ct.spools.dresser-test
+  "Tests for the ct.spools.dresser convention-convergence spool: template
   and aspect-registry data, workflow compilation in setup and verify-only
   modes, target-root resolution, receipt semantics, and end-to-end fixture
   runs against a disposable weaver world."
@@ -11,14 +11,14 @@
             [skein.api.vocab.alpha :as vocab]
             [skein.api.weaver.alpha :as weaver]
             [skein.core.weaver.runtime :as weaver-runtime]
-            [skein.spools.dresser :as dresser]
-            [skein.spools.dresser.aspects :as aspects]
-            [skein.spools.dresser-edges-test]
-            [skein.spools.dresser-fixtures :as fixtures]
-            [skein.spools.dresser.receipt :as receipt]
-            [skein.spools.dresser.target :as target]
-            [skein.spools.dresser.templates :as templates]
-            [skein.spools.dresser.workflows :as dresser-workflows]
+            [ct.spools.dresser :as dresser]
+            [ct.spools.dresser.aspects :as aspects]
+            [ct.spools.dresser-edges-test]
+            [ct.spools.dresser-fixtures :as fixtures]
+            [ct.spools.dresser.receipt :as receipt]
+            [ct.spools.dresser.target :as target]
+            [ct.spools.dresser.templates :as templates]
+            [ct.spools.dresser.workflows :as dresser-workflows]
             [skein.spools.workflow :as workflow]
             [skein.test.alpha :as t])
   (:import (java.nio.file Files Path)
@@ -77,7 +77,7 @@
       exception)))
 
 (deftest dresser-prerequisites-are-checked-through-the-seam
-  (let [check (ns-resolve 'skein.spools.dresser 'check-prereqs!)
+  (let [check (ns-resolve 'ct.spools.dresser 'check-prereqs!)
         workflow-missing (thrown-data #(check (constantly nil) {:shell identity}))
         shell-missing (thrown-data #(check (constantly identity) {}))
         success (check (constantly identity) {:shell identity})]
@@ -89,7 +89,7 @@
     (is (ifn? (:shell success)))))
 
 (deftest dresser-prerequisite-resolution-preserves-unexpected-failures
-  (let [check (ns-resolve 'skein.spools.dresser 'check-prereqs!)
+  (let [check (ns-resolve 'ct.spools.dresser 'check-prereqs!)
         root-cause (IllegalStateException. "resolution exploded")
         exception (thrown-exception #(check (fn [_] (throw root-cause))
                                             {:shell identity}))]
@@ -106,7 +106,7 @@
         (is (str/includes? content "acme"))
         (is (not (str/includes? content "<name>"))))))
   (is (str/includes? (templates/template "spool-repo/deps.edn" {:name "acme"})
-                     "skein.spools.acme-test")))
+                     "ct.spools.acme-test")))
 
 (deftest static-reference-template-is-exact
   (is (= "{\"configFormat\":\"alpha\"}\n"
@@ -148,7 +148,7 @@
 
 (deftest aspect-registry-is-valid
   (is (= (set (keys expected-aspect-ids)) (set (keys aspects/registry))))
-  (is (= {"spool-repo/repo-skeleton" 2
+  (is (= {"spool-repo/repo-skeleton" 3
           "spool-repo/skein-workspace" 2
           "spool-repo/agent-docs" 1
           "spool-repo/quality" 2
@@ -469,7 +469,7 @@
   (with-temp-dir [root]
     (let [previous {:dresser/release 1 :dresser/fingerprint "one" :aspects {}}
           replacement {:dresser/release 2 :dresser/fingerprint "two" :aspects {}}
-          write-with-move (ns-resolve 'skein.spools.dresser.receipt
+          write-with-move (ns-resolve 'ct.spools.dresser.receipt
                                       'write-receipt-with-move!)]
       (receipt/write-receipt! root previous)
       (is (thrown? RuntimeException
@@ -613,7 +613,7 @@
         (is (= (set (keys aspects/registry)) (set (keys (:aspects registry)))))
         (is (every? #(contains? % :gates) (vals (:aspects registry))))
         (is (= {:name "acme"} (:params rendered)))
-        (is (str/includes? (:content rendered) "skein.spools.acme-test"))))))
+        (is (str/includes? (:content rendered) "ct.spools.acme-test"))))))
 
 (deftest plan-op-resolves-root-and-reports-receipt-states-and-provenance
   (with-temp-dir [parent]
@@ -924,6 +924,6 @@
 (defn -main
   "Run the standalone dresser.spool test suite."
   [& _args]
-  (let [summary (run-tests 'skein.spools.dresser-test
-                           'skein.spools.dresser-edges-test)]
+  (let [summary (run-tests 'ct.spools.dresser-test
+                           'ct.spools.dresser-edges-test)]
     (System/exit (if (pos? (+ (:fail summary) (:error summary))) 1 0))))

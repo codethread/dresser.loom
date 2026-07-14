@@ -1,7 +1,7 @@
-(ns skein.spools.dresser.templates
+(ns ct.spools.dresser.templates
   "Canonical source-data templates for dresser's v1 convention aspects."
   (:require [skein.api.spool.alpha :as spool]
-            [skein.spools.dresser.specs :as specs]))
+            [ct.spools.dresser.specs :as specs]))
 
 (def skein-config-json
   "{\"configFormat\":\"alpha\"}\n")
@@ -60,24 +60,24 @@
          "         :extra-deps {io.skein/skein {:local/root \"../skein-src\"}\n"
          "                      io.skein/workflow-spool {:local/root \"../skein-src/spools/workflow\"}}\n"
          "         :jvm-opts [\"--enable-native-access=ALL-UNNAMED\"]\n"
-         "         :main-opts [\"-m\" \"skein.spools." name "-test\"]}}}\n")))
+         "         :main-opts [\"-m\" \"ct.spools." name "-test\"]}}}\n")))
 
 (defn spool-repo-src-ns [params]
   (let [name (require-name params "spool-repo/src-ns.clj")]
-    (str "(ns skein.spools." name "\n"
+    (str "(ns ct.spools." name "\n"
          "  \"Shared spool implementation.\")\n")))
 
 (defn spool-repo-test-main [params]
   (let [name (require-name params "spool-repo/test-main.clj")]
-    (str "(ns skein.spools." name "-test\n"
-         "  \"Tests for the skein.spools." name " shared spool.\"\n"
+    (str "(ns ct.spools." name "-test\n"
+         "  \"Tests for the ct.spools." name " shared spool.\"\n"
          "  (:require [clojure.test :refer [run-tests]]\n"
-         "            [skein.spools." name "]))\n"
+         "            [ct.spools." name "]))\n"
          "\n"
          "(defn -main\n"
          "  \"Run the standalone " name " spool test suite.\"\n"
          "  [& _args]\n"
-         "  (let [summary (run-tests 'skein.spools." name "-test)]\n"
+         "  (let [summary (run-tests 'ct.spools." name "-test)]\n"
          "    (System/exit (if (pos? (+ (:fail summary) (:error summary))) 1 0))))\n")))
 
 (def spool-repo-gitignore
@@ -114,7 +114,7 @@
          "\n"
          "## Activation\n"
          "\n"
-         "After approval, sync the operator runtime and activate `skein.spools." name "`.\n")))
+         "After approval, sync the operator runtime and activate `ct.spools." name "`.\n")))
 
 (def spool-repo-agents-md
   (str "# Agents\n"

@@ -15,4 +15,4 @@
          :extra-deps {io.skein/skein {:local/root "../skein-src"}
                       io.skein/workflow-spool {:local/root "../skein-src/spools/workflow"}}
          :jvm-opts ["--enable-native-access=ALL-UNNAMED"]
-         :main-opts ["-m" "skein.spools.dresser-test"]}}}
+         :main-opts ["-m" "ct.spools.dresser-test"]}}}

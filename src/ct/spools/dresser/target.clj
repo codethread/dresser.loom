@@ -1,4 +1,4 @@
-(ns skein.spools.dresser.target
+(ns ct.spools.dresser.target
   "Canonical target-root resolution and stable dresser run identities."
   (:require [clojure.string :as str]
             [skein.api.spool.alpha :as spool])

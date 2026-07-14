@@ -1,9 +1,9 @@
-(ns skein.spools.dresser.receipt
+(ns ct.spools.dresser.receipt
   "Filesystem receipt codec and pure receipt/registry plan classification."
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [skein.api.spool.alpha :as spool]
-            [skein.spools.dresser.specs :as specs])
+            [ct.spools.dresser.specs :as specs])
   (:import (java.nio.file CopyOption Files StandardCopyOption)))
 
 (defn- receipt-file [root]

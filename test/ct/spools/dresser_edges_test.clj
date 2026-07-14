@@ -1,4 +1,4 @@
-(ns skein.spools.dresser-edges-test
+(ns ct.spools.dresser-edges-test
   "End-to-end contract edges for dresser run identity, routing, evidence, and plan."
   (:require [clojure.java.io :as io]
             [clojure.set :as set]
@@ -6,11 +6,11 @@
             [clojure.test :refer [deftest is]]
             [skein.api.spool.alpha :as spool]
             [skein.api.weaver.alpha :as weaver]
-            [skein.spools.dresser :as dresser]
-            [skein.spools.dresser.aspects :as aspects]
-            [skein.spools.dresser-fixtures :as fixtures]
-            [skein.spools.dresser.receipt :as receipt]
-            [skein.spools.dresser.target :as target]
+            [ct.spools.dresser :as dresser]
+            [ct.spools.dresser.aspects :as aspects]
+            [ct.spools.dresser-fixtures :as fixtures]
+            [ct.spools.dresser.receipt :as receipt]
+            [ct.spools.dresser.target :as target]
             [skein.spools.workflow :as workflow]))
 
 (defn- op! [runtime & args]
