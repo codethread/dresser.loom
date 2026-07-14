@@ -137,10 +137,13 @@ A non-zero command, timeout, spawn failure, or invalid gate request leaves the
 gate ready and stamps `shell/error`; it does not close the gate or the run.
 Inspect the gate's `shell/error`, `shell/output`, and `shell/exit-code`, then fix
 the target or gate request. Clear the durable error to request a deterministic
-rerun:
+rerun. Clearing means **deleting** the attribute: an explicit `nil` value rides
+the storage layer's `json_patch` merge as a deletion, whereas the CLI's
+`--attr shell/error=` writes an empty string that still counts as present and
+still blocks `stamp`. Delete from the weaver REPL:
 
-```sh
-strand update <gate-id> --attr shell/error=
+```clojure
+(repl/update! "<gate-id>" {:attributes {"shell/error" nil}})
 ```
 
 The shell executor scans the now-ready, unclaimed gate again. When it exits
