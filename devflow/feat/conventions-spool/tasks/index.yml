@@ -2,7 +2,7 @@ tasks:
   - id: 1
     description: Templates namespace with v1 template data
     task_file: tasks/001-templates-ns.md
-    status: pending
+    status: complete
     blocked_by: []
   - id: 2
     description: Aspect registry with fingerprint inputs and id tables
