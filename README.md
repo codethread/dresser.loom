@@ -71,7 +71,7 @@ executor, and dresser in that order:
 (runtime/use! runtime
   :workflow
   {:ns 'skein.spools.workflow
-   :spools [skein.spools/workflow]
+   :spools ['skein.spools/workflow]
    :required? true})
 
 (runtime/use! runtime
@@ -84,7 +84,7 @@ executor, and dresser in that order:
 (runtime/use! runtime
   :dresser
   {:ns 'skein.spools.dresser
-   :spools [codethread/dresser]
+   :spools ['codethread/dresser]
    :call 'skein.spools.dresser/install!
    :after [:workflow :shell-executor]
    :required? true})

@@ -69,6 +69,13 @@
     (catch clojure.lang.ExceptionInfo exception
       (ex-data exception))))
 
+(defn- thrown-exception [f]
+  (try
+    (f)
+    nil
+    (catch Throwable exception
+      exception)))
+
 (deftest dresser-prerequisites-are-checked-through-the-seam
   (let [check (ns-resolve 'skein.spools.dresser 'check-prereqs!)
         workflow-missing (thrown-data #(check (constantly nil) {:shell identity}))
@@ -80,6 +87,14 @@
     (is (= #{} (:registered-executors shell-missing)))
     (is (ifn? (:workflow success)))
     (is (ifn? (:shell success)))))
+
+(deftest dresser-prerequisite-resolution-preserves-unexpected-failures
+  (let [check (ns-resolve 'skein.spools.dresser 'check-prereqs!)
+        root-cause (IllegalStateException. "resolution exploded")
+        exception (thrown-exception #(check (fn [_] (throw root-cause))
+                                            {:shell identity}))]
+    (is (identical? root-cause exception))
+    (is (= "resolution exploded" (ex-message exception)))))
 
 (deftest v1-template-registry-is-complete
   (is (= expected-template-names (set (keys templates/templates)))))
@@ -259,12 +274,14 @@
       (is (= "conflict-policy"
              (get-in strands [:conflict :attributes "workflow/decision-point"])))
       (doseq [{:keys [id argv timeout-secs]} (:gates entry)]
-        (is (= {"workflow/gate" "shell"
+        (is (= {"dresser/gate-id" (name id)
+                "workflow/gate" "shell"
                 "shell/argv" argv
                 "shell/cwd" "/tmp/x"
                 "shell/timeout-secs" timeout-secs}
                (select-keys (get-in strands [id :attributes])
-                            ["workflow/gate"
+                            ["dresser/gate-id"
+                             "workflow/gate"
                              "shell/argv"
                              "shell/cwd"
                              "shell/timeout-secs"])))))))
@@ -362,7 +379,15 @@
         (testing (name reason)
           (let [data (thrown-data #(target/resolve-root path))]
             (is (= (str path) (:path data)))
-            (is (= reason (:reason data)))))))))
+            (is (= reason (:reason data))))))
+      (let [exception (thrown-exception #(target/resolve-root (str "bad" \u0000 "path")))
+            data (ex-data exception)]
+        (is (= :unresolvable (:reason data)))
+        (is (= "java.nio.file.InvalidPathException" (:cause-type data)))
+        (is (str/includes? (:cause-message data) "Nul character"))
+        (is (= [:exists :directory :git-worktree-root]
+               (:allowed-root-constraints data)))
+        (is (instance? java.nio.file.InvalidPathException (.getCause exception)))))))
 
 (deftest dresser-run-identities-are-stable-and-separated
   (with-temp-dir [parent]
@@ -389,12 +414,27 @@
     (spit (io/file (.toFile root) ".skein" "conventions.edn") "[")
     (is (= :invalid-edn (:reason (thrown-data #(receipt/read-receipt root)))))
     (spit (io/file (.toFile root) ".skein" "conventions.edn") "[]")
-    (is (= :not-a-map (:reason (thrown-data #(receipt/read-receipt root)))))))
+    (let [data (thrown-data #(receipt/read-receipt root))]
+      (is (= :invalid-shape (:reason data)))
+      (is (map? (:explain data))))))
+
+(deftest malformed-receipt-plan-input-yields-structured-spec-error
+  (let [malformed {:dresser/fingerprint "release-one"
+                   :aspects {"spool-repo/a"
+                             {:version 1 :release 1 :applied-at "2026-07-14"}}}
+        registry {:release 1
+                  :fingerprint "release-one"
+                  :releases {1 "release-one"}
+                  :aspects {"spool-repo/a" 1}}
+        exception (thrown-exception #(receipt/plan-classification malformed registry))]
+    (is (instance? clojure.lang.ExceptionInfo exception))
+    (is (= malformed (:value (ex-data exception))))
+    (is (map? (:explain (ex-data exception))))))
 
 (deftest failed-atomic-receipt-move-preserves-previous-file
   (with-temp-dir [root]
-    (let [previous {:dresser/release 1 :aspects {}}
-          replacement {:dresser/release 2 :aspects {}}
+    (let [previous {:dresser/release 1 :dresser/fingerprint "one" :aspects {}}
+          replacement {:dresser/release 2 :dresser/fingerprint "two" :aspects {}}
           write-with-move (ns-resolve 'skein.spools.dresser.receipt
                                       'write-receipt-with-move!)]
       (receipt/write-receipt! root previous)
@@ -422,35 +462,74 @@
   (let [registry {:release 2
                   :fingerprint "release-two"
                   :releases {1 "release-one" 2 "release-two"}
-                  :aspects {"a" 2 "b" 1}}
+                  :aspects {"spool-repo/a" 2 "spool-repo/b" 1}}
         classify #(receipt/plan-classification % registry)
         stamped (fn [release fingerprint aspects]
                   {:dresser/release release
                    :dresser/fingerprint fingerprint
                    :aspects aspects})]
-    (is (= {"a" :new "b" :new} (classify nil)) "absent receipt")
+    (is (= {"spool-repo/a" :new "spool-repo/b" :new} (classify nil))
+        "absent receipt")
     (is (= :pending
-           (get (classify (stamped 1 "release-one" {"a" {:version 1}})) "a"))
+           (get (classify (stamped 1 "release-one"
+                                   {"spool-repo/a" {:version 1
+                                                    :release 1
+                                                    :applied-at "2026-07-14"}}))
+                "spool-repo/a"))
         "aspect version behind")
     (is (= :current
-           (get (classify (stamped 1 "release-one" {"a" {:version 2}})) "a"))
+           (get (classify (stamped 1 "release-one"
+                                   {"spool-repo/a" {:version 2
+                                                    :release 1
+                                                    :applied-at "2026-07-14"}}))
+                "spool-repo/a"))
         "equal version and known matching lineage")
     (is (= :divergent
-           (get (classify (stamped 1 "forked-release-one" {"a" {:version 2}})) "a"))
+           (get (classify (stamped 1 "forked-release-one"
+                                   {"spool-repo/a" {:version 2
+                                                    :release 1
+                                                    :applied-at "2026-07-14"}}))
+                "spool-repo/a"))
         "equal version and same-integer fork")
     (is (= :divergent
-           (get (classify (stamped 0 "unknown" {"a" {:version 2}})) "a"))
+           (get (classify (stamped 0 "unknown"
+                                   {"spool-repo/a" {:version 2
+                                                    :release 0
+                                                    :applied-at "2026-07-14"}}))
+                "spool-repo/a"))
         "equal version and unknown release")
     (is (= :ahead
-           (get (classify (stamped 2 "release-two" {"a" {:version 3}})) "a"))
+           (get (classify (stamped 2 "release-two"
+                                   {"spool-repo/a" {:version 3
+                                                    :release 2
+                                                    :applied-at "2026-07-14"}}))
+                "spool-repo/a"))
         "aspect version ahead")
     (is (= :ahead
-           (get (classify (stamped 3 "future" {"a" {:version 2}})) "a"))
+           (get (classify (stamped 3 "future"
+                                   {"spool-repo/a" {:version 2
+                                                    :release 3
+                                                    :applied-at "2026-07-14"}}))
+                "spool-repo/a"))
         "receipt release ahead")
     (is (= :removed
-           (get (classify (stamped 2 "release-two" {"removed" {:version 1}}))
-                "removed"))
+           (get (classify (stamped 2 "release-two"
+                                   {"spool-repo/removed"
+                                    {:version 1
+                                     :release 2
+                                     :applied-at "2026-07-14"}}))
+                "spool-repo/removed"))
         "receipt aspect absent from registry")))
+
+(deftest unsupported-dresser-subcommand-fails-with-alternatives
+  (let [exception (thrown-exception
+                   #(dresser/dresser-op {:op/args {:subcommand "explode"}}))
+        data (ex-data exception)]
+    (is (= "Unsupported dresser subcommand" (ex-message exception)))
+    (is (= "explode" (:subcommand data)))
+    (is (= #{"about" "aspects" "template" "plan" "start" "verify"
+             "next" "advance" "stamp"}
+           (set (:allowed data))))))
 
 (defn- git-init-root! ^Path [^Path parent name]
   (let [root (.resolve parent name)
@@ -477,7 +556,8 @@
                  "next" "advance" "stamp"}
                (set (map :name (get-in help [:arg-spec :subcommands])))))
         (is (= :mutating (:hook-class op)))
-        (is (= ["dresser/flavour" "dresser/aspect" "dresser/version" "dresser/root"]
+        (is (= ["dresser/flavour" "dresser/aspect" "dresser/version" "dresser/root"
+                "dresser/gate-id"]
                (:keys declaration)))
         (is (= (set (keys dresser-workflows/workflow-definitions))
                (set (keys (workflow/registered-workflows)))))))))
@@ -659,6 +739,7 @@
          (map (fn [{:keys [id title]}]
                 (workflow/gate id title :shell
                                :attributes {"dresser/aspect" aspect-key
+                                            "dresser/gate-id" (name id)
                                             "shell/argv" ["true"]
                                             "shell/cwd" "/tmp"
                                             "shell/timeout-secs" 30}))
@@ -684,6 +765,41 @@
                                :attributes {"shell/exit-code" 0}})
           (let [data (thrown-data #(dresser/stamp! aspect-key root))]
             (is (contains? (violation-types data "init-header") :missing-gate))
+            (is (nil? (receipt/read-receipt root)))))))))
+
+(deftest stamp-refuses-gate-id-mismatch-even-when-title-matches
+  (fixtures/with-temp-dir [parent]
+    (let [root (fixtures/git-init-root! parent "wrong-gate-id")
+          aspect-key "skein-dir/agent-docs"
+          run-id (target/run-id "skein-dir" root)
+          expected-gate (first (:gates (aspects/aspect aspect-key)))
+          wrong-gate [(assoc expected-gate :id :old-agent-docs-files)]]
+      (with-runtime-without-shell
+        (fn [_]
+          (workflow/start! run-id (evidence-workflow aspect-key wrong-gate) {}
+                           {:family "dresser"})
+          (workflow/complete! run-id
+                              {:by "shell"
+                               :attributes {"shell/exit-code" 0}})
+          (let [data (thrown-data #(dresser/stamp! aspect-key root))]
+            (is (contains? (violation-types data "agent-docs-files") :missing-gate))
+            (is (contains? (violation-types data "old-agent-docs-files")
+                           :unexpected-gate))
+            (is (nil? (receipt/read-receipt root)))))))))
+
+(deftest stamp-without-setup-history-is-structured-evidence-failure
+  (fixtures/with-temp-dir [parent]
+    (let [root (fixtures/git-init-root! parent "no-history")
+          aspect-key "skein-dir/agent-docs"]
+      (with-runtime-without-shell
+        (fn [_]
+          (let [exception (thrown-exception #(dresser/stamp! aspect-key root))
+                data (ex-data exception)]
+            (is (str/includes? (ex-message exception) "stamp evidence failed"))
+            (is (nil? (:generation data)))
+            (is (= [{:violation :missing-generation
+                     :run-id (target/run-id "skein-dir" root)}]
+                   (:violations data)))
             (is (nil? (receipt/read-receipt root)))))))))
 
 (deftest stamp-refuses-force-closed-gate
@@ -748,7 +864,6 @@
           (let [state (fixtures/drive-skein-dir! runtime root)]
             (is (= :done (:reason state)) (pr-str state)))
           (is (= :current (:plan (dresser/stamp! aspect-key root))))
-          (fixtures/await-next-clock-second!)
           (weaver/op! runtime 'dresser
                       ["start" "skein-dir" (str root)
                        "--aspects" aspect-key])

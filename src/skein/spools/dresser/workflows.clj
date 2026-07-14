@@ -1,7 +1,9 @@
 (ns skein.spools.dresser.workflows
   "Workflow constructors compiled from the versioned dresser aspect registry."
   (:require [clojure.string :as str]
+            [skein.api.spool.alpha :as spool]
             [skein.spools.dresser.aspects :as aspects]
+            [skein.spools.dresser.specs :as specs]
             [skein.spools.workflow :as workflow]))
 
 (defn- aspect-parts [aspect-key]
@@ -84,6 +86,7 @@
            :shell
            :depends-on [dependency]
            :attributes (assoc attributes
+                              "dresser/gate-id" (name id)
                               "shell/argv" argv
                               "shell/cwd" (param-value :root)
                               "shell/timeout-secs" timeout-secs)))
@@ -92,11 +95,16 @@
 (defn aspect-workflow
   "Return the one-argument workflow constructor for `aspect-key`."
   [aspect-key]
+  (spool/require-valid! ::specs/aspect-key aspect-key
+                        "Dresser aspect workflow key has an invalid shape")
   (let [entry (aspects/aspect aspect-key)
         [flavour aspect-name] (aspect-parts aspect-key)
         attributes (aspect-attributes flavour aspect-key (:version entry))]
-    (fn [{:keys [verify-only]}]
-      (let [setup (setup-steps entry attributes)
+    (fn [params]
+      (spool/require-valid! ::specs/aspect-workflow-input params
+                            "Dresser aspect workflow input has an invalid shape")
+      (let [{:keys [verify-only]} params
+            setup (setup-steps entry attributes)
             gate-dependency (or (:id (peek (:setup entry))) :conflict)]
         (apply workflow/workflow
                (str "Dresser " aspect-key)
@@ -151,8 +159,13 @@
 (defn flavour-workflow
   "Return the one-argument umbrella constructor for `flavour`."
   [flavour]
-  (fn [{:keys [aspects root verify-only]}]
-    (let [selected (or aspects (aspects/flavour-aspects flavour))
+  (spool/require-valid! ::specs/flavour flavour
+                        "Dresser workflow flavour has an invalid shape")
+  (fn [params]
+    (spool/require-valid! ::specs/flavour-workflow-input params
+                          "Dresser flavour workflow input has an invalid shape")
+    (let [{:keys [aspects root verify-only]} params
+          selected (or aspects (aspects/flavour-aspects flavour))
           calls (second
                  (reduce (fn [[dependency result] aspect-key]
                            (let [id (call-id aspect-key)]
@@ -179,7 +192,9 @@
 
 (defn abort-workflow
   "Return the terminal workflow that records an abort reason."
-  [_params]
+  [params]
+  (spool/require-valid! ::specs/abort-workflow-input params
+                        "Dresser abort workflow input has an invalid shape")
   (workflow/workflow
    "Dresser abort"
    {:params {:reason (workflow/param :required true)}}

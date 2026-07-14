@@ -19,20 +19,33 @@
             [skein.test.alpha :as t])
   (:import (java.nio.file Files Path)
            (java.nio.file.attribute FileAttribute)
-           (java.util.concurrent Executors ThreadFactory)))
+           (java.time LocalDate)
+           (java.util.concurrent AbstractExecutorService)))
+
+(def ^:private max-driver-steps 64)
+(def ^:private attention-timeout-ms 5000)
+
+(defn- direct-executor []
+  (let [shutdown? (atom false)]
+    (proxy [AbstractExecutorService] []
+      (execute [command]
+        (when @shutdown?
+          (throw (java.util.concurrent.RejectedExecutionException.)))
+        (.run ^Runnable command))
+      (shutdown [] (reset! shutdown? true))
+      (shutdownNow [] (reset! shutdown? true) [])
+      (isShutdown [] @shutdown?)
+      (isTerminated [] @shutdown?)
+      (awaitTermination [_timeout _unit] true))))
 
 (defn install-serial-shell!
-  "Install the real shell executor with a deterministic one-worker test pool."
+  "Install the real shell executor with deterministic inline worker completion."
   []
-  (let [workers (Executors/newSingleThreadExecutor
-                 (reify ThreadFactory
-                   (newThread [_ runnable]
-                     (doto (Thread. runnable "dresser-test-reed-worker")
-                       (.setDaemon true)))))
+  (let [workers (direct-executor)
         new-state (fn []
                     {:scan-monitor (Object.)
                      :worker-executor workers
-                     :close-fn #(.shutdownNow workers)})]
+                     :close-fn #(.shutdown workers)})]
     (with-redefs-fn {(ns-resolve 'skein.spools.executors.shell 'new-state)
                      new-state}
       shell-executor/install!)))
@@ -52,7 +65,8 @@
             (install-serial-shell!)
             (workflow/register-executor! :shell (constantly nil)))
           (dresser/install!)
-          (f (:runtime ctx) (:config-dir ctx)))))))
+          (binding [dresser/*current-date* (LocalDate/of 2026 7 14)]
+            (f (:runtime ctx) (:config-dir ctx))))))))
 
 (defn temp-directory ^Path []
   (Files/createTempDirectory "dresser-e2e-" (make-array FileAttribute 0)))
@@ -219,7 +233,7 @@
   "Poll until a run is done, stalled, or needs its driving agent."
   [runtime run-id]
   (spool/poll-until-deadline!
-   {:deadline (+ (System/currentTimeMillis) 600000)
+   {:deadline (+ (System/currentTimeMillis) attention-timeout-ms)
     :poll-ms 25
     :check #(attention runtime run-id)
     :pred->result identity
@@ -228,18 +242,13 @@
                                   {:run-id run-id
                                    :ready (workflow/next-steps run-id)})))}))
 
-(defn await-next-clock-second!
-  "Cross the store's second-resolution timestamp boundary via the shared poller."
-  []
-  (let [second (quot (System/currentTimeMillis) 1000)]
-    (spool/poll-until-deadline!
-     {:deadline (+ (System/currentTimeMillis) 2000)
-      :poll-ms 10
-      :check #(quot (System/currentTimeMillis) 1000)
-      :pred->result #(when (> % second) %)
-      :on-timeout (fn [last-second]
-                    (throw (ex-info "Clock did not cross a timestamp boundary"
-                                    {:initial second :last last-second})))})))
+(defn- require-driver-budget! [run-id driven]
+  (when (>= driven max-driver-steps)
+    (throw (ex-info "Dresser fixture exceeded its deterministic driver-step budget"
+                    {:run-id run-id
+                     :driven driven
+                     :max-driver-steps max-driver-steps
+                     :ready (workflow/next-steps run-id)}))))
 
 (defn drive-skein-dir!
   "Drive all agent-owned work, letting the real shell executor own gates.
@@ -250,13 +259,14 @@
    (drive-skein-dir! runtime root {}))
   ([runtime root {:keys [before-advance]}]
    (let [run-id (target/run-id "skein-dir" root)]
-     (loop []
+     (loop [driven 0]
        (let [{:keys [reason ready] :as state} (wait-for-attention! runtime run-id)]
          (case reason
            :done state
            :stalled state
            :driver
-           (let [step (first ready)
+           (let [_ (require-driver-budget! run-id driven)
+                 step (first ready)
                  base ["advance" "skein-dir" (str root)]]
              (if (= "checkpoint" (:kind step))
                (weaver/op! runtime 'dresser (conj base "--choice" "clean"))
@@ -266,19 +276,20 @@
                  (when before-advance (before-advance step))
                  (weaver/op! runtime 'dresser
                              (conj base "--notes" "fixture driver completed step"))))
-             (recur))))))))
+             (recur (inc driven)))))))))
 
 (defn drive-spool-repo!
   "Drive all spool-repo agent work, leaving gates to the real shell executor."
   [runtime root]
   (let [run-id (target/run-id "spool-repo" root)]
-    (loop []
+    (loop [driven 0]
       (let [{:keys [reason ready] :as state} (wait-for-attention! runtime run-id)]
         (case reason
           :done state
           :stalled state
           :driver
-          (let [step (first ready)
+          (let [_ (require-driver-budget! run-id driven)
+                step (first ready)
                 base ["advance" "spool-repo" (str root)]]
             (if (= "checkpoint" (:kind step))
               (weaver/op! runtime 'dresser (conj base "--choice" "clean"))
@@ -287,12 +298,13 @@
                   (write-spool-repo-step-files! root (:title step)))
                 (weaver/op! runtime 'dresser
                             (conj base "--notes" "fixture driver completed step"))))
-            (recur)))))))
+            (recur (inc driven))))))))
 
 (defn latest-generation-strands
   "Return every strand under run-id's latest molecule generation."
   [runtime run-id]
-  (let [root-id (get-in (peek (workflow/run-history run-id)) [:root :id])]
+  (let [root-id (or (:id (workflow/current-root run-id))
+                    (get-in (peek (workflow/run-history run-id)) [:root :id]))]
     (:strands (graph/subgraph runtime [root-id]))))
 
 (defn poured-aspects

@@ -1,7 +1,7 @@
 (ns skein.spools.dresser.templates
   "Canonical source-data templates for dresser's v1 convention aspects."
-  (:require [clojure.string :as str]
-            [skein.api.spool.alpha :as spool]))
+  (:require [skein.api.spool.alpha :as spool]
+            [skein.spools.dresser.specs :as specs]))
 
 (def skein-config-json
   "{\"configFormat\":\"alpha\"}\n")
@@ -41,7 +41,7 @@
        "*.sqlite-*\n"))
 
 (defn- require-name [{:keys [name] :as params} template-name]
-  (when-not (and (string? name) (not (str/blank? name)))
+  (when-not (specs/non-blank-string? name)
     (spool/fail! "Template requires a non-blank :name"
                  {:template template-name
                   :required :name
@@ -248,6 +248,9 @@
   ([name]
    (template name {}))
   ([name params]
+   (spool/require-valid! ::specs/template-input
+                         {:name name :params params}
+                         "Dresser template input has an invalid shape")
    (let [entry (get templates name ::unknown)]
      (when (= ::unknown entry)
        (spool/fail! "Unknown dresser template"

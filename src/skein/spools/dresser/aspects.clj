@@ -2,6 +2,7 @@
   "Versioned convention aspects and their material lineage data."
   (:require [clojure.string :as str]
             [skein.api.spool.alpha :as spool]
+            [skein.spools.dresser.specs :as specs]
             [skein.spools.dresser.templates :as templates])
   (:import (java.nio.charset StandardCharsets)
            (java.security MessageDigest)))
@@ -148,10 +149,14 @@
              :argv ["sh" "-c" "test -f .skein/AGENTS.md && test -f .skein/CLAUDE.md && grep -q 'AGENTS.md' .skein/CLAUDE.md"]
              :timeout-secs 30}]}})
 
+(defn- validated-registry []
+  (spool/require-valid! ::specs/registry registry
+                        "Dresser aspect registry has an invalid shape"))
+
 (defn aspect
   "Return an aspect definition, failing loudly when key is unknown."
   [key]
-  (or (get registry key)
+  (or (get (validated-registry) key)
       (spool/fail! "Unknown dresser aspect"
                    {:aspect key :known (set (keys registry))})))
 
@@ -189,12 +194,14 @@
 (defn flavour-aspects
   "Return all aspects for flavour in deterministic dependency order."
   [flavour]
+  (validated-registry)
   (ordered-selection flavour
                      (for [key (keys registry) :when (= flavour (key-flavour key))] key)))
 
 (defn close-under-deps
   "Return selected full aspect keys, closed under dependencies and ordered."
   [flavour keys]
+  (validated-registry)
   (ordered-selection flavour keys))
 
 (defn- canonical [value]
@@ -215,6 +222,7 @@
 (defn material-data
   "Return canonical material inputs for the current release plus workflow topology."
   [topology]
+  (validated-registry)
   (canonical
    {:aspects
     (into (sorted-map)

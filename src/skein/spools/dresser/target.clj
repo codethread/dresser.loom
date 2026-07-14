@@ -8,6 +8,14 @@
 
 (def ^:private no-link-options (make-array LinkOption 0))
 
+(def ^:private allowed-root-constraints
+  [:exists :directory :git-worktree-root])
+
+(defn- cause-context [exception]
+  {:cause-type (.getName (class exception))
+   :cause-message (ex-message exception)
+   :allowed-root-constraints allowed-root-constraints})
+
 (defn- path-of ^Path [path]
   (Paths/get (str path) (make-array String 0)))
 
@@ -30,12 +38,16 @@
         (str root))
       (catch NoSuchFileException exception
         (spool/fail! "Dresser target root does not exist"
-                     {:path offending :reason :missing} exception))
+                     (merge {:path offending :reason :missing}
+                            (cause-context exception))
+                     exception))
       (catch clojure.lang.ExceptionInfo exception
         (throw exception))
       (catch Exception exception
         (spool/fail! "Dresser target root cannot be resolved"
-                     {:path offending :reason :unresolvable} exception)))))
+                     (merge {:path offending :reason :unresolvable}
+                            (cause-context exception))
+                     exception)))))
 
 (defn- sha256 [value]
   (let [digest (.digest (MessageDigest/getInstance "SHA-256")

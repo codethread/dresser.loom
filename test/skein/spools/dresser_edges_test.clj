@@ -109,7 +109,6 @@
           (op! runtime "start" "spool-repo" (str root) "--aspects" aspect-key)
           (fixtures/assert-done! (fixtures/drive-spool-repo! runtime root))
           (is (= :current (:plan (dresser/stamp! aspect-key root))))
-          (fixtures/await-next-clock-second!)
           (op! runtime "start" "spool-repo" (str root) "--aspects" aspect-key)
           (let [history (workflow/run-history run-id)
                 exception (fixtures/capture-exception #(dresser/stamp! aspect-key root))
