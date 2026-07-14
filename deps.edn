@@ -1,0 +1,10 @@
+{:paths ["src"]
+ :aliases
+ {:test {:extra-paths ["test"]
+         ;; io.skein/skein exposes only Skein's base classpath (src/, batteries).
+         ;; The workflow engine and its shell executor live in a spool root off
+         ;; that classpath and join the test JVM as their own dep.
+         :extra-deps {io.skein/skein {:local/root "../skein-src"}
+                      io.skein/workflow-spool {:local/root "../skein-src/spools/workflow"}}
+         :jvm-opts ["--enable-native-access=ALL-UNNAMED"]
+         :main-opts ["-m" "skein.spools.dresser-test"]}}}

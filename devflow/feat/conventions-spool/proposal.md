@@ -1,0 +1,42 @@
+# Conventions Spool (dresser) Proposal
+
+**Document ID:** `PROP-Dresser-001@2`
+**Last Updated:** 2026-07-14
+**Related RFCs:** None (design agreed with user in-session, 2026-07-14; recorded on skein-src kanban card `niu25`; @2 folds two REVISE reviews, notes `6y0op`/`ofha7` on the review step)
+**Related root specs:** skein-src `docs/spools/writing-shared-spools.md` (distribution contract), `spools/workflow.md` (engine contract), `spools/executors/shell.md` (verification gates)
+
+## PROP-Dresser-001.P1 Problem
+
+Skein-adjacent repos keep re-deriving the same working conventions by hand: formatting and lint config, test harness shape, agent guidance files, Makefile targets, and (for repos coordinating work through a `.skein` workspace) the startup-config layout and its change discipline. Today the only way to adopt them is to copy from skein-src or a sibling spool repo and hope nothing drifts. There is no mechanism to bootstrap a new repo onto the conventions, no record in the target repo of which conventions (at which version) it adopted, and no path to receive convention updates later.
+
+## PROP-Dresser-001.P2 Goals
+
+- **PROP-Dresser-001.G1:** One distributable, sha-pinned spool that bootstraps an opinionated setup into a target repo as agent-driven workflows, with mechanical verification that the repo actually converged.
+- **PROP-Dresser-001.G2:** Two flavours from one spool: `spool-repo` (scaffold or converge a shared-spool repo shaped like devflow.spool/kanban.spool) and `skein-dir` (a self-contained `.skein/` coordination workspace inside any host repo, host tree otherwise untouched).
+- **PROP-Dresser-001.G3:** Updatability: the target repo carries a checked-in **receipt** of applied aspect versions; bumping the consumer's `:git/sha` pin surfaces pending upgrades through a `plan` op. The receipt is never treated as proof of convergence — re-verification is what proves the repo's current state (P4.S5).
+- **PROP-Dresser-001.G4:** Convergence over templating: aspects are idempotent workflows that adopt a repo with existing partial or customized conventions. Existing files are never silently replaced: a mismatch between an owned file and its canonical form surfaces as an explicit decision (keep/merge/replace) at a checkpoint, and "converged" is defined solely by the aspect's verification gates passing — not by byte-equality with templates.
+
+## PROP-Dresser-001.P3 Non-goals
+
+- **PROP-Dresser-001.NG1:** No mechanical single-code-path repo transformation. The workflow engine never edits target files: the driving agent performs adaptive file work as `:self` steps, and the shell executor only runs read-check verification commands (fmt-check, lint, test) against the target. Verification is non-destructive by contract.
+- **PROP-Dresser-001.NG2:** No export of skein-src-specific gates (e.g. `spool-suite-gate`, smoke suites tied to the skein-src checkout). Only conventions that generalize ship as aspects.
+- **PROP-Dresser-001.NG3:** No changes to the workflow engine or shell executor; dresser is pure userland composition on the shipped contracts.
+- **PROP-Dresser-001.NG4:** No host-repo footprint in the `skein-dir` flavour beyond the `.skein/` directory itself (no root Makefile edits, no root agent-docs edits, no pointer lines).
+- **PROP-Dresser-001.NG5:** No transitive dependency installation: dresser's README documents its prerequisites (workflow spool, shell executor) per RFC-017's no-transitive-fetch rule; it does not approve or activate them itself.
+
+## PROP-Dresser-001.P4 Proposed scope
+
+- **PROP-Dresser-001.S1:** A new external spool repo (working name `dresser.spool`, sibling to devflow.spool/kanban.spool) distributed by sha-pinned git coordinate per the shared-spool contract, carrying its own test suite run against a sibling skein-src checkout.
+- **PROP-Dresser-001.S2:** Per-aspect convergence workflows registered under stable names. Each aspect pairs agent-driven setup steps (instructions as step data) with `:shell` verification gates. The v1 aspect sets are fixed now; exact templates/filenames are spec detail:
+  - `spool-repo` flavour: **repo-skeleton** (deps.edn with the sibling-checkout `:test` alias, src/test namespace pair with a `-main` exiting non-zero, three-section README recipe, contract-doc stub), **skein-workspace** (the reference `.skein/` bootstrap quartet), **agent-docs** (AGENTS.md with the skein-prime block), **quality** (cljfmt + splint config and Makefile fmt/lint/test targets — an addition over today's reference repos, which lack local quality gates).
+  - `skein-dir` flavour: **workspace** (the `.skein/` quartet plus the one-file-per-concern init.clj layout discipline), **quality** (nested `.skein/Makefile` with fmt/lint scoped to the workspace's `.clj` config code), **agent-docs** (nested `.skein/AGENTS.md`, plus a nested CLAUDE.md pointer inside `.skein/` only; host root files are never touched — NG4).
+  - Aspect dependencies are explicit and flavour-local (e.g. `quality` depends on `workspace`/`repo-skeleton` having established the files it checks).
+- **PROP-Dresser-001.S3:** Operator-world execution model with a stated prerequisite contract: dresser runs in whichever workspace drives it (a coordination world or a disposable world); that workspace must approve and activate the workflow spool, then activate the shell executor (a classpath spool needing activation only, no `spools.edn` approval), then dresser — the README activation snippet ships this exact order, and dresser's `install!` fails loudly if the workflow engine or `:shell` executor registration is absent. The target repo needs no weaver, no approvals, and no skein knowledge.
+- **PROP-Dresser-001.S4:** Target identity is resolved once and threaded everywhere: starting a dresser run requires an existing, canonicalized absolute path that is a git worktree root (flavour preconditions checked before any pour; symlinks resolved at start; fail loudly otherwise). Every step instruction and every gate's `shell/cwd` is derived from that single resolved root, so agent edits and gate verification cannot address different trees.
+- **PROP-Dresser-001.S5:** Receipt and verification are distinct surfaces: a checked-in stamp file at `.skein/conventions.edn` records applied aspect versions plus mandatory provenance — dresser's declared release version (a monotonic constant in the spool source, bumped with any aspect bump). The stamp for an aspect advances only in the run that ends with that aspect's gates green. A `plan` op diffs stamp against the loaded registry and compares provenance: pending aspects and version bumps are listed, and a stamp whose release version is unknown to, ahead of, or divergent from the loaded registry (fork, local override, downgrade) is surfaced loudly as such rather than reported current. A `verify` workflow re-runs an aspect's gates against the current tree (actual status). The registry invariant — any material change to an aspect's templates, instructions, or gates bumps its version and the release version — is enforced by a drift-alarm test in dresser's own suite, not by convention alone.
+- **PROP-Dresser-001.S6:** Canonical templates ship inside the spool source as data and are surfaced to the driving agent through a spool op (mechanism detail at spec stage; the decided constraint is only that template delivery must not depend on the consumer's classloader layout).
+- **PROP-Dresser-001.S7:** Acceptance is two-tier. Automated: dresser's test suite drives both flavours against disposable fixture repos (created under the test's own temp dirs) end to end — pour, converge, gates green, stamp written, plan reporting current/pending/divergent — with no dependency on any live checkout. User-requested adoption exercise: flavour 1 run against the sibling kanban.spool checkout on a dedicated branch (an already-shaped repo — exercising G4 convergence and the additive quality aspect), flavour 2 against `~/dev/projects/notes` (live hand-authored `.skein/` and host AGENTS.md — the not-clobber case). The live runs leave green gates and a written stamp, with all changes left uncommitted (or on the branch, unmerged) for the owner to review — the exercise grants no authority to commit in those repos.
+
+## PROP-Dresser-001.P5 Open questions
+
+- **PROP-Dresser-001.Q1:** Final repo/spool name before publishing (`dresser.spool` proposed: dressing the loom is the weaving step of setting it up, consistent with treadle/shuttle/carder naming).
