@@ -237,5 +237,3 @@
                 {:setup (topology-mode aspect-key false)
                  :verify-only (topology-mode aspect-key true)}]))
         (sort (keys aspects/registry))))
-
-(register-workflows!)

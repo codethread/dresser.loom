@@ -4,20 +4,34 @@
   modes, target-root resolution, receipt semantics, and end-to-end fixture
   runs against a disposable weaver world."
   (:require [clojure.java.io :as io]
+            [clojure.java.shell :as sh]
             [clojure.string :as str]
             [clojure.test :refer [deftest is run-tests testing]]
+            [skein.api.vocab.alpha :as vocab]
+            [skein.api.weaver.alpha :as weaver]
+            [skein.core.weaver.runtime :as weaver-runtime]
             [skein.spools.dresser :as dresser]
             [skein.spools.dresser.aspects :as aspects]
             [skein.spools.dresser.receipt :as receipt]
             [skein.spools.dresser.target :as target]
             [skein.spools.dresser.templates :as templates]
             [skein.spools.dresser.workflows :as dresser-workflows]
-            [skein.spools.workflow :as workflow])
+            [skein.spools.executors.shell :as shell-executor]
+            [skein.spools.workflow :as workflow]
+            [skein.test.alpha :as t])
   (:import (java.nio.file Files Path)
            (java.nio.file.attribute FileAttribute)))
 
 (deftest dresser-namespace-loads
   (is (some? dresser/release-version)))
+
+(defn- with-runtime [f]
+  (t/with-weaver-world [ctx {:storage :sqlite-memory}]
+    (weaver-runtime/with-runtime-binding
+      (:runtime ctx)
+      #(do
+         (shell-executor/install!)
+         (f (:runtime ctx) (:config-dir ctx))))))
 
 (def expected-template-names
   #{"skein/config.json"
@@ -52,6 +66,18 @@
     nil
     (catch clojure.lang.ExceptionInfo exception
       (ex-data exception))))
+
+(deftest dresser-prerequisites-are-checked-through-the-seam
+  (let [check (ns-resolve 'skein.spools.dresser 'check-prereqs!)
+        workflow-missing (thrown-data #(check (constantly nil) {:shell identity}))
+        shell-missing (thrown-data #(check (constantly identity) {}))
+        success (check (constantly identity) {:shell identity})]
+    (is (= :workflow (:prerequisite workflow-missing)))
+    (is (= 'skein.spools.workflow/start! (:symbol workflow-missing)))
+    (is (= :shell (:prerequisite shell-missing)))
+    (is (= #{} (:registered-executors shell-missing)))
+    (is (ifn? (:workflow success)))
+    (is (ifn? (:shell success)))))
 
 (deftest v1-template-registry-is-complete
   (is (= expected-template-names (set (keys templates/templates)))))
@@ -423,6 +449,128 @@
            (get (classify (stamped 2 "release-two" {"removed" {:version 1}}))
                 "removed"))
         "receipt aspect absent from registry")))
+
+(defn- git-init-root! ^Path [^Path parent name]
+  (let [root (.resolve parent name)
+        {:keys [exit err]} (sh/sh "git" "init" "--quiet" (str root))]
+    (when-not (zero? exit)
+      (throw (ex-info "git init failed" {:root (str root) :exit exit :stderr err})))
+    root))
+
+(deftest install-is-idempotent-and-declares-the-complete-op-surface
+  (with-runtime
+    (fn [runtime _]
+      (let [first-install (dresser/install!)
+            second-install (dresser/install!)
+            op (weaver/resolve-op runtime 'dresser)
+            subcommands (get-in op [:arg-spec :subcommands])
+            help (weaver/op! runtime 'dresser ["help"])
+            declaration (vocab/declaration runtime :attr-namespace "dresser")]
+        (is (true? (:installed first-install)))
+        (is (true? (:installed second-install)))
+        (is (= #{"about" "aspects" "template" "plan"}
+               (set (keys subcommands))))
+        (is (= #{"about" "aspects" "template" "plan"}
+               (set (map :name (get-in help [:arg-spec :subcommands])))))
+        (is (= :read (:hook-class op)))
+        (is (= ["dresser/flavour" "dresser/aspect" "dresser/version" "dresser/root"]
+               (:keys declaration)))
+        (is (= (set (keys dresser-workflows/workflow-definitions))
+               (set (keys (workflow/registered-workflows)))))))))
+
+(deftest read-only-ops-return-declared-shapes
+  (with-runtime
+    (fn [runtime _]
+      (dresser/install!)
+      (let [about (weaver/op! runtime 'dresser ["about"])
+            registry (weaver/op! runtime 'dresser ["aspects"])
+            rendered (weaver/op! runtime 'dresser
+                                 ["template" "spool-repo/deps.edn"
+                                  "--param" "name=acme"])]
+        (is (= #{:receipt :plan :verify :stamp} (set (keys (:semantics about)))))
+        (is (= #{"spool-repo" "skein-dir"} (set (keys (:flavours about)))))
+        (is (seq (:quickstart about)))
+        (is (= aspects/release-version (:release registry)))
+        (is (= (aspects/releases aspects/release-version) (:fingerprint registry)))
+        (is (= (set (keys aspects/registry)) (set (keys (:aspects registry)))))
+        (is (every? #(contains? % :gates) (vals (:aspects registry))))
+        (is (= {:name "acme"} (:params rendered)))
+        (is (str/includes? (:content rendered) "skein.spools.acme-test"))))))
+
+(deftest plan-op-resolves-root-and-reports-receipt-states-and-provenance
+  (with-temp-dir [parent]
+    (let [root (git-init-root! parent "fresh")]
+      (with-runtime
+        (fn [runtime _]
+          (dresser/install!)
+          (let [fresh (weaver/op! runtime 'dresser ["plan" (str root)])]
+            (is (= (str (.toRealPath root (make-array java.nio.file.LinkOption 0)))
+                   (:root fresh)))
+            (is (= (set (keys aspects/registry)) (set (keys (:aspects fresh)))))
+            (is (every? #{:new} (vals (:aspects fresh))))
+            (is (= :unstamped (get-in fresh [:provenance :verdict]))))
+          (let [aspect-key "spool-repo/repo-skeleton"
+                fingerprint (aspects/releases aspects/release-version)]
+            (receipt/write-receipt!
+             root
+             {:dresser/release aspects/release-version
+              :dresser/fingerprint fingerprint
+              :aspects {aspect-key {:version 0
+                                    :release aspects/release-version
+                                    :applied-at "2026-07-14"}}})
+            (is (= :pending
+                   (get-in (weaver/op! runtime 'dresser ["plan" (str root)])
+                           [:aspects aspect-key])))
+            (receipt/write-receipt!
+             root
+             {:dresser/release aspects/release-version
+              :dresser/fingerprint fingerprint
+              :aspects {aspect-key {:version 1
+                                    :release aspects/release-version
+                                    :applied-at "2026-07-14"}}})
+            (let [known (weaver/op! runtime 'dresser ["plan" (str root)])]
+              (is (= :current (get-in known [:aspects aspect-key])))
+              (is (= :known (get-in known [:provenance :verdict]))))
+            (receipt/write-receipt!
+             root
+             {:dresser/release aspects/release-version
+              :dresser/fingerprint "forked"
+              :aspects {aspect-key {:version 1
+                                    :release aspects/release-version
+                                    :applied-at "2026-07-14"}}})
+            (let [divergent (weaver/op! runtime 'dresser ["plan" (str root)])]
+              (is (= :divergent (get-in divergent [:aspects aspect-key])))
+              (is (= :divergent (get-in divergent [:provenance :verdict]))))
+            (receipt/write-receipt!
+             root
+             {:dresser/release aspects/release-version
+              :dresser/fingerprint fingerprint
+              :aspects {aspect-key {:version 2
+                                    :release aspects/release-version
+                                    :applied-at "2026-07-14"}}})
+            (is (= :ahead
+                   (get-in (weaver/op! runtime 'dresser ["plan" (str root)])
+                           [:aspects aspect-key])))
+            (receipt/write-receipt!
+             root
+             {:dresser/release (inc aspects/release-version)
+              :dresser/fingerprint "future"
+              :aspects {aspect-key {:version 1
+                                    :release (inc aspects/release-version)
+                                    :applied-at "2026-07-14"}}})
+            (let [ahead (weaver/op! runtime 'dresser ["plan" (str root)])]
+              (is (= :ahead (get-in ahead [:aspects aspect-key])))
+              (is (= :ahead (get-in ahead [:provenance :verdict]))))
+            (receipt/write-receipt!
+             root
+             {:dresser/release aspects/release-version
+              :dresser/fingerprint fingerprint
+              :aspects {"spool-repo/removed" {:version 1
+                                               :release aspects/release-version
+                                               :applied-at "2026-07-14"}}})
+            (is (= :removed
+                   (get-in (weaver/op! runtime 'dresser ["plan" (str root)])
+                           [:aspects "spool-repo/removed"])))))))))
 
 (defn -main
   "Run the standalone dresser.spool test suite."

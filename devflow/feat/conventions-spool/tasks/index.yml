@@ -22,7 +22,7 @@ tasks:
   - id: 5
     description: install!, vocabulary, and the read-only op surface
     task_file: tasks/005-runtime-and-ops.md
-    status: pending
+    status: complete
     blocked_by: [3, 4]
   - id: 6
     description: Run lifecycle, stamp evidence, and the skein-dir e2e
