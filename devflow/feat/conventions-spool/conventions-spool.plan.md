@@ -80,3 +80,7 @@ Outcome: flavour 1 driven against kanban.spool (dedicated branch, unmerged), fla
 ## PLAN-Dresser-001.P9 Developer Notes
 
 Append notes here. Do not rewrite earlier notes.
+
+### PLAN-Dresser-001.DN1 Task queue amendment after review — 2026-07-14
+
+- Queue review (note `638f4`) reshaped the pending queue before any task started: release pinning + drift alarm moved from task 2 to task 3 (fingerprint needs describe-topology, which first exists there); authoritative step/gate id tables added to task 2 (stamp identity is data, not worker invention); `merge-aspect` takes an explicit `applied-at`; atomic-write failure is tested through an injected move-fn seam; verify runs get their own `dresser-verify-` run-id with `--verify` addressing on `next`/`advance` (SPEC IC4 updated); aspect selection threads as an `:aspects` workflow param; old task 5 split into 5 (install + read-only ops) and 6 (lifecycle + stamp + skein-dir e2e); old 6/7 renumbered 7/8, with the spool-repo fixture e2e in 7 and a non-recursive self-hosting verify deftest added to 8 (V4). The `repo-skeleton`/`quality` self-verify aspects would recurse the running suite through their `clojure -M:test`/`make test` gates, so V4 is delivered as: verify-run deftest for skein-workspace + agent-docs, direct `make fmt-check lint test` for the rest.
