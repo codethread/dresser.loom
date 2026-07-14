@@ -300,12 +300,12 @@
                            :doc "Existing git worktree root."}]}
     "start" {:doc "Start a setup convergence run."
              :flags {:aspects {:type :string
-                                :doc "Comma-separated full aspect keys."}}
+                               :doc "Comma-separated full aspect keys."}}
              :positionals [{:name :flavour :required? true}
                            {:name :root :required? true}]}
     "verify" {:doc "Start a verify-only run."
               :flags {:aspects {:type :string
-                                 :doc "Comma-separated full aspect keys."}}
+                                :doc "Comma-separated full aspect keys."}}
               :positionals [{:name :flavour :required? true}
                             {:name :root :required? true}]}
     "next" {:doc "Return the run's ready frontier."
@@ -338,13 +338,13 @@
     "verify" (verify (:flavour args) (:root args) (:aspects args))
     "next" (next-steps (:flavour args) (:root args) (:verify args))
     "advance" (advance! (:flavour args)
-                         (:root args)
-                         (:verify args)
-                         (cond-> {}
-                           (contains? args :choice) (assoc :choice (:choice args))
-                           (contains? args :input) (assoc :input (keywordize-input (:input args)))
-                           (contains? args :notes) (assoc :notes (:notes args))
-                           (contains? args :step) (assoc :step (:step args))))
+                        (:root args)
+                        (:verify args)
+                        (cond-> {}
+                          (contains? args :choice) (assoc :choice (:choice args))
+                          (contains? args :input) (assoc :input (keywordize-input (:input args)))
+                          (contains? args :notes) (assoc :notes (:notes args))
+                          (contains? args :step) (assoc :step (:step args))))
     "stamp" (stamp! (:aspect args) (:root args))))
 
 (defn- op-registered? [runtime op-name]

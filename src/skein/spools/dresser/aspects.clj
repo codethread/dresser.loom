@@ -234,4 +234,4 @@
   [topology]
   (let [digest (.digest (MessageDigest/getInstance "SHA-256")
                         (.getBytes (pr-str (material-data topology)) StandardCharsets/UTF_8))]
-    (apply str (map #(format "%02x" (bit-and % 0xff)) digest))))
+    (str/join (map #(format "%02x" (bit-and % 0xff)) digest))))

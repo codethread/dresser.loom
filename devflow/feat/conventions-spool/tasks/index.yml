@@ -37,5 +37,5 @@ tasks:
   - id: 8
     description: Self-hosting quality pass and shipping docs
     task_file: tasks/008-self-hosting-and-docs.md
-    status: pending
+    status: complete
     blocked_by: [6, 7]

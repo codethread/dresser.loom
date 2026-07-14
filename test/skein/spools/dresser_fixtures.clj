@@ -3,7 +3,7 @@
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.java.shell :as sh]
-            [clojure.pprint :as pprint]
+            [clojure.pprint :as pp]
             [clojure.string :as str]
             [clojure.test :refer [is]]
             [skein.api.graph.alpha :as graph]
@@ -64,7 +64,7 @@
 (defmacro with-temp-dir [[binding] & body]
   `(let [~binding (temp-directory)]
      (try
-       ~@body
+       (do ~@body)
        (finally (delete-tree! ~binding)))))
 
 (defn git-init-root! ^Path [^Path parent name]
@@ -100,7 +100,7 @@
         deps (edn/read-string (slurp deps-file))
         quality (edn/read-string (templates/template "spool-repo/quality-aliases.edn"))]
     (with-open [writer (io/writer deps-file)]
-      (pprint/pprint (update deps :aliases merge quality) writer))))
+      (pp/pprint (update deps :aliases merge quality) writer))))
 
 (defn write-spool-repo-step-files!
   "Write the spool-repo files owned by one setup step from canonical templates."

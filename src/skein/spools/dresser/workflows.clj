@@ -157,9 +157,9 @@
                  (reduce (fn [[dependency result] aspect-key]
                            (let [id (call-id aspect-key)]
                              [id (conj result (aspect-call aspect-key
-                                                          dependency
-                                                          root
-                                                          verify-only))]))
+                                                           dependency
+                                                           root
+                                                           verify-only))]))
                          [nil []]
                          selected))]
       (apply workflow/workflow

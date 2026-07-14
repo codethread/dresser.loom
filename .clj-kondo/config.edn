@@ -1,0 +1,6 @@
+{:lint-as
+ {skein.test.alpha/with-weaver-world clojure.core/let}
+ :hooks
+ {:analyze-call
+  {skein.spools.dresser-test/with-temp-dir hooks.dresser/with-temp-dir
+   skein.spools.dresser-fixtures/with-temp-dir hooks.dresser/with-temp-dir}}}

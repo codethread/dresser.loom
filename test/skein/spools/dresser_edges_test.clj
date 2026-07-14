@@ -57,7 +57,7 @@
                "--aspects" "spool-repo/quality")
           (is (= expected (fixtures/poured-aspects runtime run-id)))
           (is (str/starts-with? (:title (first (op! runtime "next" "spool-repo"
-                                                     (str root))))
+                                                    (str root))))
                                 "Inspect repo-skeleton")))))))
 
 (deftest both-flavours-run-concurrently-on-one-root-and-are-drivable

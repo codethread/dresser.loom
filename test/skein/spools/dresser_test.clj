@@ -162,7 +162,7 @@
   (is (= ["spool-repo/repo-skeleton" "spool-repo/quality"]
          (aspects/close-under-deps "spool-repo" ["spool-repo/quality"])))
   (is (= "missing" (:aspect (thrown-data
-                              #(aspects/close-under-deps "spool-repo" ["missing"])))))
+                             #(aspects/close-under-deps "spool-repo" ["missing"])))))
   (is (= "missing" (:aspect (thrown-data #(aspects/aspect "missing"))))))
 
 (deftest material-fingerprint-is-stable-and-sensitive
@@ -335,7 +335,7 @@
 (defmacro with-temp-dir [[binding] & body]
   `(let [~binding (temp-directory)]
      (try
-       ~@body
+       (do ~@body)
        (finally (delete-tree! ~binding)))))
 
 (defn- git-root! ^Path [^Path parent name]
@@ -570,8 +570,8 @@
              {:dresser/release aspects/release-version
               :dresser/fingerprint fingerprint
               :aspects {"spool-repo/removed" {:version 1
-                                               :release aspects/release-version
-                                               :applied-at "2026-07-14"}}})
+                                              :release aspects/release-version
+                                              :applied-at "2026-07-14"}}})
             (is (= :removed
                    (get-in (weaver/op! runtime 'dresser ["plan" (str root)])
                            [:aspects "spool-repo/removed"])))))))))
@@ -632,6 +632,26 @@
                              #(weaver/op! runtime 'dresser
                                           ["verify" "skein-dir" (str root)
                                            "--aspects" "unknown"])))))))))))
+
+(deftest this-repo-passes-non-recursive-self-hosting-verification
+  ;; repo-skeleton would recurse through clojure -M:test. quality and
+  ;; repo-skeleton are covered directly by make fmt-check lint test instead.
+  (let [root (.getCanonicalPath (io/file "."))
+        selected "spool-repo/skein-workspace,spool-repo/agent-docs"
+        run-id (target/verify-run-id "spool-repo" root)]
+    (fixtures/with-dresser-runtime
+      (fn [runtime _]
+        (weaver/op! runtime 'dresser
+                    ["verify" "spool-repo" root "--aspects" selected])
+        (fixtures/assert-done! (fixtures/wait-for-attention! runtime run-id))
+        (let [gates (filterv #(= "shell" (spool/attr-get % :workflow/gate))
+                             (fixtures/latest-generation-strands runtime run-id))]
+          (is (= #{"spool-repo/skein-workspace" "spool-repo/agent-docs"}
+                 (set (map #(spool/attr-get % :dresser/aspect) gates))))
+          (is (every? #(= "closed" (:state %)) gates))
+          (is (every? #(= "shell" (spool/attr-get % :workflow/outcome-by)) gates))
+          (is (every? #(zero? (spool/attr-get % :shell/exit-code)) gates))
+          (is (every? #(nil? (spool/attr-get % :shell/error)) gates)))))))
 
 (defn- evidence-workflow [aspect-key gates]
   (apply workflow/workflow

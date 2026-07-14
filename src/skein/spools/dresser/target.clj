@@ -1,6 +1,7 @@
 (ns skein.spools.dresser.target
   "Canonical target-root resolution and stable dresser run identities."
-  (:require [skein.api.spool.alpha :as spool])
+  (:require [clojure.string :as str]
+            [skein.api.spool.alpha :as spool])
   (:import (java.nio.charset StandardCharsets)
            (java.nio.file Files LinkOption NoSuchFileException Path Paths)
            (java.security MessageDigest)))
@@ -39,7 +40,7 @@
 (defn- sha256 [value]
   (let [digest (.digest (MessageDigest/getInstance "SHA-256")
                         (.getBytes value StandardCharsets/UTF_8))]
-    (apply str (map #(format "%02x" (bit-and % 0xff)) digest))))
+    (str/join (map #(format "%02x" (bit-and % 0xff)) digest))))
 
 (defn- identity-for [prefix flavour root]
   (let [canonical (resolve-root root)

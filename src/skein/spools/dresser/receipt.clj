@@ -41,9 +41,9 @@
      (.toPath directory)
      (make-array java.nio.file.attribute.FileAttribute 0))
     (let [temporary (Files/createTempFile (.toPath directory)
-                                           ".conventions-"
-                                           ".tmp"
-                                           (make-array java.nio.file.attribute.FileAttribute 0))
+                                          ".conventions-"
+                                          ".tmp"
+                                          (make-array java.nio.file.attribute.FileAttribute 0))
           options (into-array CopyOption [StandardCopyOption/ATOMIC_MOVE
                                           StandardCopyOption/REPLACE_EXISTING])]
       (try
