@@ -15,7 +15,7 @@ Deliver `dresser.spool`: a distributable spool implementing SPEC-Dresser-001 —
 
 ## PLAN-Dresser-001.P2 Approach
 
-- **PLAN-Dresser-001.A1:** Build bottom-up in one repo: templates ns (pure data) → aspect registry ns (aspect defs: version, deps, inspect/setup instructions, gate specs, all as data) → workflow construction (generic builder that compiles an aspect entry into a workflow with setup/verify-only modes; flavour umbrella chains aspect workflows via `call` in dependency order) → runtime ns (`install!`, target-root resolution, run-id derivation, receipt read/write, op handlers) → op registration. All explicit-runtime per the shared-spool rules; ergonomics stay in the consumer's config.
+- **PLAN-Dresser-001.A1:** Build bottom-up in one repo: templates ns (pure data) → aspect registry ns (aspect defs: version, deps, inspect/setup instructions, gate specs, all as data) → workflow construction (generic builder that compiles an aspect entry into a workflow with setup/verify-only modes; flavour umbrella chains aspect workflows via `call` in dependency order, subset selected at construction) → runtime ns (`install!` prereq checks, target-root resolution, run-id derivation, receipt codec + lineage fingerprints, op handlers) → op registration. Data layers are pure; weaver-touching code follows the engine's ambient-runtime surface exactly as devflow.spool does (SPEC-Dresser-001.IC2/D4).
 - **PLAN-Dresser-001.A2:** Test-first at the seams that are cheap to get wrong: root resolution (canonicalization, non-git rejection), receipt round-trip + provenance divergence classification, registry fingerprint drift alarm, workflow compilation in both modes (via `describe`, no weaver needed), then end-to-end fixture runs with `skein.test.alpha/with-weaver-world` (pour, drive steps as a fake agent, let real shell gates verify a real fixture tree, stamp, re-plan).
 - **PLAN-Dresser-001.A3:** Distribution shape follows the reference repos exactly (deps.edn `:test` alias with sibling local roots, three-section README, contract doc `dresser.md` distilled from SPEC-Dresser-001 at promotion time).
 
@@ -62,9 +62,10 @@ Outcome: flavour 1 driven against kanban.spool (dedicated branch, unmerged), fla
 ## PLAN-Dresser-001.P6 Validation strategy
 
 - **PLAN-Dresser-001.V1:** `clojure -M:test` (standalone suite, sibling checkout) green — the repo's CI-equivalent gate.
-- **PLAN-Dresser-001.V2:** Fixture end-to-end: both flavours converge disposable fixture repos with real shell gates; receipt written only after green; `plan` reports current, then pending after a simulated version bump, then divergent on a simulated fork receipt.
-- **PLAN-Dresser-001.V3:** Self-hosting: dresser.spool's own tree passes `verify` for `spool-repo` aspects it claims.
-- **PLAN-Dresser-001.V4:** Live exercises per S7 leave green gates, a stamp, and no commits by the agent.
+- **PLAN-Dresser-001.V2:** Fixture end-to-end (with-weaver-world + real shell executor): full flavour runs covering **all** v1 aspects for both flavours; dependency-closed `--aspects` subsets; receipt written only via `stamp` after green.
+- **PLAN-Dresser-001.V3:** Contract edges as unit/fixture tests: install fail-loud on missing workflow ns and missing `:shell` executor; root resolution (symlink canonicalization, non-git and missing paths rejected); run addressing (both flavours concurrently on one root; second `start` on an active run fails; repeated runs select the latest generation); stamp evidence matrix (missing gate, force-closed gate with `outcome-by` ≠ shell, stale-generation green gates, red gate → refusal; clear `shell/error` → executor rerun → stamp passes); `plan` classification matrix (new/pending/current/divergent/ahead/removed, incl. same-integer fork via fingerprint mismatch); conflict checkpoint paths (clean, apply-plan with recorded decisions incl. keep-that-still-passes, abort); `skein-dir` host-root-untouched assertion; receipt atomic-write failure; registry drift alarm.
+- **PLAN-Dresser-001.V4:** Self-hosting: dresser.spool's own tree passes `verify` for `spool-repo` aspects it claims.
+- **PLAN-Dresser-001.V5:** Live exercises per S7 leave green gates, a stamp, and no commits by the agent — supplemental to, never instead of, V2/V3 coverage.
 
 ## PLAN-Dresser-001.P7 Risks and open questions
 
