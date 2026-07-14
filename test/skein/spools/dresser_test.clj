@@ -3,13 +3,18 @@
   and aspect-registry data, workflow compilation in setup and verify-only
   modes, target-root resolution, receipt semantics, and end-to-end fixture
   runs against a disposable weaver world."
-  (:require [clojure.string :as str]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as str]
             [clojure.test :refer [deftest is run-tests testing]]
             [skein.spools.dresser :as dresser]
             [skein.spools.dresser.aspects :as aspects]
+            [skein.spools.dresser.receipt :as receipt]
+            [skein.spools.dresser.target :as target]
             [skein.spools.dresser.templates :as templates]
             [skein.spools.dresser.workflows :as dresser-workflows]
-            [skein.spools.workflow :as workflow]))
+            [skein.spools.workflow :as workflow])
+  (:import (java.nio.file Files Path)
+           (java.nio.file.attribute FileAttribute)))
 
 (deftest dresser-namespace-loads
   (is (some? dresser/release-version)))
@@ -291,6 +296,133 @@
   (is (= (set (keys dresser-workflows/workflow-definitions))
          (set (keys (dresser-workflows/register-workflows!)))))
   (is (= 10 (count dresser-workflows/workflow-definitions))))
+
+(defn- temp-directory ^Path []
+  (Files/createTempDirectory "dresser-test-" (make-array FileAttribute 0)))
+
+(defn- delete-tree! [^Path root]
+  (doseq [file (reverse (file-seq (.toFile root)))]
+    (io/delete-file file true)))
+
+(defmacro with-temp-dir [[binding] & body]
+  `(let [~binding (temp-directory)]
+     (try
+       ~@body
+       (finally (delete-tree! ~binding)))))
+
+(defn- git-root! ^Path [^Path parent name]
+  (let [root (Files/createDirectory (.resolve parent name)
+                                    (make-array FileAttribute 0))]
+    (Files/createDirectory (.resolve root ".git") (make-array FileAttribute 0))
+    root))
+
+(deftest target-root-resolution-is-canonical-and-fail-loud
+  (with-temp-dir [parent]
+    (let [root (git-root! parent "repo")
+          link (.resolve parent "linked-repo")]
+      (Files/createSymbolicLink link root (make-array FileAttribute 0))
+      (is (= (str (.toRealPath root (make-array java.nio.file.LinkOption 0)))
+             (target/resolve-root link))))
+    (let [missing (.resolve parent "missing")
+          regular-file (.resolve parent "file")
+          non-git (Files/createDirectory (.resolve parent "plain")
+                                         (make-array FileAttribute 0))]
+      (spit (.toFile regular-file) "not a directory")
+      (doseq [[path reason] [[missing :missing]
+                             [regular-file :not-directory]
+                             [non-git :not-git-root]]]
+        (testing (name reason)
+          (let [data (thrown-data #(target/resolve-root path))]
+            (is (= (str path) (:path data)))
+            (is (= reason (:reason data)))))))))
+
+(deftest dresser-run-identities-are-stable-and-separated
+  (with-temp-dir [parent]
+    (let [root-a (git-root! parent "alpha")
+          root-b (git-root! parent "beta")
+          setup (target/run-id "spool-repo" root-a)
+          verify (target/verify-run-id "spool-repo" root-a)]
+      (is (= setup (target/run-id "spool-repo" root-a)))
+      (is (re-matches #"dresser-spool-repo-alpha-[0-9a-f]{8}" setup))
+      (is (re-matches #"dresser-verify-spool-repo-alpha-[0-9a-f]{8}" verify))
+      (is (not= setup verify))
+      (is (not= setup (target/run-id "skein-dir" root-a)))
+      (is (not= setup (target/run-id "spool-repo" root-b))))))
+
+(deftest receipt-codec-round-trips-and-rejects-invalid-data
+  (with-temp-dir [root]
+    (let [value {:dresser/release 1
+                 :dresser/fingerprint "abc"
+                 :aspects {"spool-repo/repo-skeleton"
+                           {:version 1 :release 1 :applied-at "2026-07-14"}}}]
+      (is (nil? (receipt/read-receipt root)))
+      (is (= value (receipt/write-receipt! root value)))
+      (is (= value (receipt/read-receipt root))))
+    (spit (io/file (.toFile root) ".skein" "conventions.edn") "[")
+    (is (= :invalid-edn (:reason (thrown-data #(receipt/read-receipt root)))))
+    (spit (io/file (.toFile root) ".skein" "conventions.edn") "[]")
+    (is (= :not-a-map (:reason (thrown-data #(receipt/read-receipt root)))))))
+
+(deftest failed-atomic-receipt-move-preserves-previous-file
+  (with-temp-dir [root]
+    (let [previous {:dresser/release 1 :aspects {}}
+          replacement {:dresser/release 2 :aspects {}}
+          write-with-move (ns-resolve 'skein.spools.dresser.receipt
+                                      'write-receipt-with-move!)]
+      (receipt/write-receipt! root previous)
+      (is (thrown? RuntimeException
+                   (write-with-move root replacement
+                                    (fn [& _]
+                                      (throw (RuntimeException. "move failed"))))))
+      (is (= previous (receipt/read-receipt root)))
+      (is (= #{"conventions.edn"}
+             (set (map #(.getName %) (.listFiles (io/file (.toFile root) ".skein")))))))))
+
+(deftest merge-aspect-records-explicit-provenance
+  (is (= {:dresser/release 3
+          :dresser/fingerprint "feed"
+          :aspects {"spool-repo/repo-skeleton"
+                    {:version 2 :release 3 :applied-at "2026-07-14"}}}
+         (receipt/merge-aspect nil
+                               "spool-repo/repo-skeleton"
+                               {:version 2}
+                               3
+                               "feed"
+                               "2026-07-14"))))
+
+(deftest receipt-plan-classification-matrix
+  (let [registry {:release 2
+                  :fingerprint "release-two"
+                  :releases {1 "release-one" 2 "release-two"}
+                  :aspects {"a" 2 "b" 1}}
+        classify #(receipt/plan-classification % registry)
+        stamped (fn [release fingerprint aspects]
+                  {:dresser/release release
+                   :dresser/fingerprint fingerprint
+                   :aspects aspects})]
+    (is (= {"a" :new "b" :new} (classify nil)) "absent receipt")
+    (is (= :pending
+           (get (classify (stamped 1 "release-one" {"a" {:version 1}})) "a"))
+        "aspect version behind")
+    (is (= :current
+           (get (classify (stamped 1 "release-one" {"a" {:version 2}})) "a"))
+        "equal version and known matching lineage")
+    (is (= :divergent
+           (get (classify (stamped 1 "forked-release-one" {"a" {:version 2}})) "a"))
+        "equal version and same-integer fork")
+    (is (= :divergent
+           (get (classify (stamped 0 "unknown" {"a" {:version 2}})) "a"))
+        "equal version and unknown release")
+    (is (= :ahead
+           (get (classify (stamped 2 "release-two" {"a" {:version 3}})) "a"))
+        "aspect version ahead")
+    (is (= :ahead
+           (get (classify (stamped 3 "future" {"a" {:version 2}})) "a"))
+        "receipt release ahead")
+    (is (= :removed
+           (get (classify (stamped 2 "release-two" {"removed" {:version 1}}))
+                "removed"))
+        "receipt aspect absent from registry")))
 
 (defn -main
   "Run the standalone dresser.spool test suite."

@@ -17,7 +17,7 @@ tasks:
   - id: 4
     description: Root resolution, receipt codec, plan classification
     task_file: tasks/004-root-receipt-plan.md
-    status: pending
+    status: complete
     blocked_by: [2]
   - id: 5
     description: install!, vocabulary, and the read-only op surface
