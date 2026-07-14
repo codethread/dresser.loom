@@ -7,16 +7,17 @@
             [clojure.java.shell :as sh]
             [clojure.string :as str]
             [clojure.test :refer [deftest is run-tests testing]]
+            [skein.api.spool.alpha :as spool]
             [skein.api.vocab.alpha :as vocab]
             [skein.api.weaver.alpha :as weaver]
             [skein.core.weaver.runtime :as weaver-runtime]
             [skein.spools.dresser :as dresser]
             [skein.spools.dresser.aspects :as aspects]
+            [skein.spools.dresser-fixtures :as fixtures]
             [skein.spools.dresser.receipt :as receipt]
             [skein.spools.dresser.target :as target]
             [skein.spools.dresser.templates :as templates]
             [skein.spools.dresser.workflows :as dresser-workflows]
-            [skein.spools.executors.shell :as shell-executor]
             [skein.spools.workflow :as workflow]
             [skein.test.alpha :as t])
   (:import (java.nio.file Files Path)
@@ -30,7 +31,7 @@
     (weaver-runtime/with-runtime-binding
       (:runtime ctx)
       #(do
-         (shell-executor/install!)
+         (fixtures/install-serial-shell!)
          (f (:runtime ctx) (:config-dir ctx))))))
 
 (def expected-template-names
@@ -468,11 +469,13 @@
             declaration (vocab/declaration runtime :attr-namespace "dresser")]
         (is (true? (:installed first-install)))
         (is (true? (:installed second-install)))
-        (is (= #{"about" "aspects" "template" "plan"}
+        (is (= #{"about" "aspects" "template" "plan" "start" "verify"
+                 "next" "advance" "stamp"}
                (set (keys subcommands))))
-        (is (= #{"about" "aspects" "template" "plan"}
+        (is (= #{"about" "aspects" "template" "plan" "start" "verify"
+                 "next" "advance" "stamp"}
                (set (map :name (get-in help [:arg-spec :subcommands])))))
-        (is (= :read (:hook-class op)))
+        (is (= :mutating (:hook-class op)))
         (is (= ["dresser/flavour" "dresser/aspect" "dresser/version" "dresser/root"]
                (:keys declaration)))
         (is (= (set (keys dresser-workflows/workflow-definitions))
@@ -571,6 +574,181 @@
             (is (= :removed
                    (get-in (weaver/op! runtime 'dresser ["plan" (str root)])
                            [:aspects "spool-repo/removed"])))))))))
+
+(defn- with-runtime-without-shell [f]
+  (t/with-weaver-world [ctx {:storage :sqlite-memory}]
+    (weaver-runtime/with-runtime-binding
+      (:runtime ctx)
+      #(do
+         (workflow/register-executor! :shell (constantly nil))
+         (f (:runtime ctx))))))
+
+(deftest lifecycle-ops-address-setup-and-verify-runs
+  (fixtures/with-temp-dir [parent]
+    (let [root (fixtures/git-init-root! parent "lifecycle")]
+      (with-runtime-without-shell
+        (fn [runtime]
+          (dresser/install!)
+          (let [setup (weaver/op! runtime 'dresser
+                                  ["start" "skein-dir" (str root)
+                                   "--aspects" "skein-dir/agent-docs"])
+                setup-ready (weaver/op! runtime 'dresser
+                                        ["next" "skein-dir" (str root)])]
+            (is (= (:ready setup) setup-ready))
+            (is (= 1 (count setup-ready)))
+            (is (str/starts-with? (:title (first setup-ready)) "Inspect "))
+            (is (= :active-run
+                   (let [data (thrown-data
+                               #(weaver/op! runtime 'dresser
+                                            ["start" "skein-dir" (str root)]))]
+                     (when (= (target/run-id "skein-dir" root) (:run-id data))
+                       :active-run))))
+            (weaver/op! runtime 'dresser
+                        ["advance" "skein-dir" (str root)
+                         "--step" (:id (first setup-ready))
+                         "--notes" "inspected"])
+            (let [checkpoint (first (weaver/op! runtime 'dresser
+                                                ["next" "skein-dir" (str root)]))
+                  after-choice (weaver/op! runtime 'dresser
+                                           ["advance" "skein-dir" (str root)
+                                            "--step" (:id checkpoint)
+                                            "--choice" "apply-plan"
+                                            "--input" "decisions=replace"])]
+              (is (= "checkpoint" (:kind checkpoint)))
+              (is (= "Write layered workspace"
+                     (get-in after-choice [:ready 0 :title]))))
+            (let [verify (weaver/op! runtime 'dresser
+                                     ["verify" "skein-dir" (str root)
+                                      "--aspects" "skein-dir/agent-docs"])
+                  verify-ready (weaver/op! runtime 'dresser
+                                           ["next" "skein-dir" (str root) "--verify"])]
+              (is (= (:ready verify) verify-ready))
+              (is (= #{"shell"} (set (map :gate verify-ready))))
+              (is (not= (target/run-id "skein-dir" root)
+                        (target/verify-run-id "skein-dir" root))))
+            (is (= "unknown"
+                   (:aspect (thrown-data
+                             #(weaver/op! runtime 'dresser
+                                          ["verify" "skein-dir" (str root)
+                                           "--aspects" "unknown"])))))))))))
+
+(defn- evidence-workflow [aspect-key gates]
+  (apply workflow/workflow
+         "Poured stamp evidence fixture"
+         (map (fn [{:keys [id title]}]
+                (workflow/gate id title :shell
+                               :attributes {"dresser/aspect" aspect-key
+                                            "shell/argv" ["true"]
+                                            "shell/cwd" "/tmp"
+                                            "shell/timeout-secs" 30}))
+              gates)))
+
+(defn- violation-types [data gate-id]
+  (into #{}
+        (keep #(when (= gate-id (:gate %)) (:violation %)))
+        (:violations data)))
+
+(deftest stamp-refuses-missing-expected-gate
+  (fixtures/with-temp-dir [parent]
+    (let [root (fixtures/git-init-root! parent "missing-gate")
+          aspect-key "skein-dir/workspace"
+          run-id (target/run-id "skein-dir" root)
+          only-gate [(first (:gates (aspects/aspect aspect-key)))]]
+      (with-runtime-without-shell
+        (fn [_]
+          (workflow/start! run-id (evidence-workflow aspect-key only-gate) {}
+                           {:family "dresser"})
+          (workflow/complete! run-id
+                              {:by "shell"
+                               :attributes {"shell/exit-code" 0}})
+          (let [data (thrown-data #(dresser/stamp! aspect-key root))]
+            (is (contains? (violation-types data "init-header") :missing-gate))
+            (is (nil? (receipt/read-receipt root)))))))))
+
+(deftest stamp-refuses-force-closed-gate
+  (fixtures/with-temp-dir [parent]
+    (let [root (fixtures/git-init-root! parent "human-gate")
+          aspect-key "skein-dir/agent-docs"
+          run-id (target/run-id "skein-dir" root)
+          gates (:gates (aspects/aspect aspect-key))]
+      (with-runtime-without-shell
+        (fn [_]
+          (workflow/start! run-id (evidence-workflow aspect-key gates) {}
+                           {:family "dresser"})
+          (workflow/complete! run-id
+                              {:by "human"
+                               :attributes {"shell/exit-code" 0}})
+          (let [data (thrown-data #(dresser/stamp! aspect-key root))]
+            (is (contains? (violation-types data "agent-docs-files") :outcome-by))
+            (is (= "human"
+                   (:actual (some #(when (= :outcome-by (:violation %)) %)
+                                  (:violations data)))))))))))
+
+(deftest skein-dir-e2e-stamps-all-aspects-without-touching-host-tree
+  (fixtures/with-temp-dir [parent]
+    (let [root (fixtures/git-init-root! parent "skein-dir")]
+      (spit (.toFile (.resolve root "HOST.txt")) "host-owned\n")
+      (let [before (fixtures/snapshot-outside-skein root)]
+        (with-runtime
+          (fn [runtime _]
+            (dresser/install!)
+            (weaver/op! runtime 'dresser ["start" "skein-dir" (str root)])
+            (let [state (fixtures/drive-skein-dir! runtime root)]
+              (is (= :done (:reason state)) (pr-str state)))
+            (doseq [aspect-key (aspects/flavour-aspects "skein-dir")]
+              (let [result (weaver/op! runtime 'dresser
+                                       ["stamp" aspect-key (str root)])]
+                (is (= aspect-key (:aspect result)))
+                (is (= :current (:plan result)))
+                (is (re-matches #"\d{4}-\d{2}-\d{2}"
+                                (get-in result [:entry :applied-at])))))
+            (let [stamp (receipt/read-receipt root)
+                  planned (weaver/op! runtime 'dresser ["plan" (str root)])]
+              (is (= aspects/release-version (:dresser/release stamp)))
+              (is (= (aspects/releases aspects/release-version)
+                     (:dresser/fingerprint stamp)))
+              (is (= (set (aspects/flavour-aspects "skein-dir"))
+                     (set (keys (:aspects stamp)))))
+              (is (every? #{:current}
+                          (map (:aspects planned)
+                               (aspects/flavour-aspects "skein-dir")))))))
+        (is (= before (fixtures/snapshot-outside-skein root)))))))
+
+(deftest red-gate-recovery-refuses-old-green-evidence-then-stamps
+  (fixtures/with-temp-dir [parent]
+    (let [root (fixtures/git-init-root! parent "recovery")
+          aspect-key "skein-dir/workspace"]
+      (with-runtime
+        (fn [runtime _]
+          (dresser/install!)
+          (weaver/op! runtime 'dresser
+                      ["start" "skein-dir" (str root)
+                       "--aspects" aspect-key])
+          (let [state (fixtures/drive-skein-dir! runtime root)]
+            (is (= :done (:reason state)) (pr-str state)))
+          (is (= :current (:plan (dresser/stamp! aspect-key root))))
+          (fixtures/await-next-clock-second!)
+          (weaver/op! runtime 'dresser
+                      ["start" "skein-dir" (str root)
+                       "--aspects" aspect-key])
+          (let [state (fixtures/drive-skein-dir!
+                       runtime root
+                       {:before-advance
+                        (fn [step]
+                          (when (= "Write layered workspace" (:title step))
+                            (spit (io/file (str root) ".skein" "init.clj")
+                                  ";; deliberately broken\n")))})
+                failed-gate (:gate state)
+                refusal (thrown-data #(dresser/stamp! aspect-key root))]
+            (is (= :stalled (:reason state)))
+            (is (= "Check init header" (:title failed-gate)))
+            (is (some? (spool/attr-get failed-gate :shell/error)))
+            (is (contains? (violation-types refusal "init-header") :shell-error))
+            (fixtures/write-step-files! root "Write layered workspace")
+            (weaver/update runtime (:id failed-gate)
+                           {:attributes {"shell/error" nil}})
+            (is (= :done (:reason (fixtures/drive-skein-dir! runtime root))))
+            (is (= :current (:plan (dresser/stamp! aspect-key root))))))))))
 
 (defn -main
   "Run the standalone dresser.spool test suite."

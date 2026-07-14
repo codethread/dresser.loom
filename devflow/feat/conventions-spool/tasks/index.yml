@@ -27,7 +27,7 @@ tasks:
   - id: 6
     description: Run lifecycle, stamp evidence, and the skein-dir e2e
     task_file: tasks/006-lifecycle-and-stamp.md
-    status: pending
+    status: complete
     blocked_by: [5]
   - id: 7
     description: Contract-edge e2e test matrix and the spool-repo e2e

@@ -1,8 +1,10 @@
 (ns skein.spools.dresser
   "Convention-convergence spool: versioned per-aspect setup/verify workflows
   driven from an operator weaver world against a target repo path."
-  (:require [skein.api.current.alpha :as current]
+  (:require [clojure.string :as str]
+            [skein.api.current.alpha :as current]
             [skein.api.format.alpha :as fmt]
+            [skein.api.graph.alpha :as graph]
             [skein.api.spool.alpha :as spool]
             [skein.api.vocab.alpha :as vocab]
             [skein.api.weaver.alpha :as weaver]
@@ -11,7 +13,8 @@
             [skein.spools.dresser.target :as target]
             [skein.spools.dresser.templates :as templates]
             [skein.spools.dresser.workflows :as dresser-workflows]
-            [skein.spools.workflow :as workflow]))
+            [skein.spools.workflow :as workflow])
+  (:import (java.time LocalDate)))
 
 (def release-version
   "Compatibility alias for the aspect registry's release version."
@@ -134,6 +137,145 @@
      :aspects (receipt/plan-classification stamp registry-view)
      :provenance (provenance-view stamp)}))
 
+(defn- selected-aspects [flavour selection]
+  (if (some? selection)
+    (let [keys (mapv str/trim (str/split selection #"," -1))]
+      (when (some str/blank? keys)
+        (spool/fail! "Dresser --aspects must be a comma-separated list of aspect keys"
+                     {:flavour flavour :aspects selection}))
+      (aspects/close-under-deps flavour keys))
+    (aspects/flavour-aspects flavour)))
+
+(defn- start-run! [flavour root verify-only selection]
+  (let [root (target/resolve-root root)
+        selected (selected-aspects flavour selection)
+        run-id ((if verify-only target/verify-run-id target/run-id) flavour root)
+        params {:root root :verify-only verify-only :aspects selected}]
+    (workflow/start! run-id
+                     (keyword "dresser" flavour)
+                     params
+                     {:family "dresser"})))
+
+(defn start
+  "Start a setup run for flavour and root."
+  [flavour root selection]
+  (start-run! flavour root false selection))
+
+(defn verify
+  "Start a verify-only run for flavour and root."
+  [flavour root selection]
+  (start-run! flavour root true selection))
+
+(defn- addressed-run-id [flavour root verify?]
+  (let [root (target/resolve-root root)]
+    ((if verify? target/verify-run-id target/run-id) flavour root)))
+
+(defn next-steps
+  "Return the ready frontier for a setup run, or verify run when verify? is true."
+  [flavour root verify?]
+  (workflow/next-steps (addressed-run-id flavour root verify?)))
+
+(defn advance!
+  "Advance a setup run, or verify run when verify? is true."
+  [flavour root verify? opts]
+  (workflow/advance! (addressed-run-id flavour root verify?) opts))
+
+(defn- attr [strand key]
+  (spool/attr-get strand key))
+
+(defn- expected-gates [aspect-key]
+  (into (sorted-map)
+        (map (fn [{:keys [id title]}] [(name id) title]))
+        (:gates (aspects/aspect aspect-key))))
+
+(defn- latest-generation-gates [run-id aspect-key]
+  (let [history (workflow/run-history run-id)
+        root-id (get-in (peek history) [:root :id])
+        strands (:strands (graph/subgraph (current/runtime) [root-id]))]
+    {:root-id root-id
+     :gates (filterv #(and (= aspect-key (attr % :dresser/aspect))
+                           (= "shell" (attr % :workflow/gate)))
+                     strands)}))
+
+(defn- evidence-violations [expected gates]
+  (let [expected-by-title (into {} (map (fn [[id title]] [title id])) expected)
+        identified (group-by #(get expected-by-title (:title %)) gates)
+        missing (remove #(contains? identified %) (keys expected))
+        unexpected (get identified nil)]
+    (vec
+     (concat
+      (map (fn [gate-id] {:violation :missing-gate :gate gate-id}) missing)
+      (map (fn [gate]
+             {:violation :unexpected-gate :gate (:id gate) :title (:title gate)})
+           unexpected)
+      (mapcat
+       (fn [[gate-id _]]
+         (let [matches (get identified gate-id)]
+           (concat
+            (when (> (count matches) 1)
+              [{:violation :duplicate-gate
+                :gate gate-id
+                :strand-ids (mapv :id matches)}])
+            (mapcat
+             (fn [gate]
+               (cond-> []
+                 (not= "closed" (:state gate))
+                 (conj {:violation :gate-not-closed :gate gate-id :state (:state gate)})
+
+                 (not= "shell" (attr gate :workflow/outcome-by))
+                 (conj {:violation :outcome-by
+                        :gate gate-id
+                        :actual (attr gate :workflow/outcome-by)
+                        :expected "shell"})
+
+                 (not= 0 (attr gate :shell/exit-code))
+                 (conj {:violation :exit-code
+                        :gate gate-id
+                        :actual (attr gate :shell/exit-code)
+                        :expected 0})
+
+                 (some? (attr gate :shell/error))
+                 (conj {:violation :shell-error
+                        :gate gate-id
+                        :actual (attr gate :shell/error)})))
+             matches))))
+       expected)))))
+
+(defn stamp!
+  "Stamp one aspect from the latest setup generation's durable gate evidence."
+  [aspect-key root]
+  (let [root (target/resolve-root root)
+        [flavour aspect-name :as parts] (str/split aspect-key #"/" 2)]
+    (when-not (= 2 (count parts))
+      (spool/fail! "Dresser stamp aspect must be <flavour>/<aspect>"
+                   {:aspect aspect-key}))
+    (let [entry (aspects/aspect aspect-key)
+          run-id (target/run-id flavour root)
+          expected (expected-gates aspect-key)
+          {:keys [root-id gates]} (latest-generation-gates run-id aspect-key)
+          violations (evidence-violations expected gates)]
+      (when (seq violations)
+        (spool/fail! (str "Dresser stamp evidence failed for " flavour "/" aspect-name
+                          ": "
+                          (str/join ", "
+                                    (map #(str (name (:violation %))
+                                               "[" (:gate %) "]")
+                                         violations)))
+                     {:aspect aspect-key
+                      :run-id run-id
+                      :generation root-id
+                      :violations violations}))
+      (let [updated (receipt/merge-aspect (receipt/read-receipt root)
+                                          aspect-key
+                                          entry
+                                          aspects/release-version
+                                          (current-fingerprint)
+                                          (str (LocalDate/now)))
+            written (receipt/write-receipt! root updated)]
+        {:aspect aspect-key
+         :entry (get-in written [:aspects aspect-key])
+         :plan (get-in (plan root) [:aspects aspect-key])}))))
+
 (def ^:private dresser-arg-spec
   {:op "dresser"
    :doc "Inspect and converge repository conventions."
@@ -149,16 +291,55 @@
     "plan" {:doc "Compare a target receipt with this registry release."
             :positionals [{:name :root
                            :required? true
-                           :doc "Existing git worktree root."}]}}})
+                           :doc "Existing git worktree root."}]}
+    "start" {:doc "Start a setup convergence run."
+             :flags {:aspects {:type :string
+                                :doc "Comma-separated full aspect keys."}}
+             :positionals [{:name :flavour :required? true}
+                           {:name :root :required? true}]}
+    "verify" {:doc "Start a verify-only run."
+              :flags {:aspects {:type :string
+                                 :doc "Comma-separated full aspect keys."}}
+              :positionals [{:name :flavour :required? true}
+                            {:name :root :required? true}]}
+    "next" {:doc "Return the run's ready frontier."
+            :flags {:verify {:type :boolean
+                             :doc "Address the verify-only run."}}
+            :positionals [{:name :flavour :required? true}
+                          {:name :root :required? true}]}
+    "advance" {:doc "Advance one ready run step or checkpoint."
+               :flags {:verify {:type :boolean
+                                :doc "Address the verify-only run."}
+                       :choice {:type :string}
+                       :input {:type :map}
+                       :notes {:type :string}
+                       :step {:type :string}}
+               :positionals [{:name :flavour :required? true}
+                             {:name :root :required? true}]}
+    "stamp" {:doc "Stamp one aspect after latest-generation gates pass."
+             :positionals [{:name :aspect :required? true}
+                           {:name :root :required? true}]}}})
 
 (defn dresser-op
-  "Dispatch parsed read-only dresser subcommands."
+  "Dispatch parsed dresser subcommands."
   [{:op/keys [args]}]
   (case (:subcommand args)
     "about" (about)
     "aspects" (aspects-view)
     "template" (template-view (:name args) (:param args))
-    "plan" (plan (:root args))))
+    "plan" (plan (:root args))
+    "start" (start (:flavour args) (:root args) (:aspects args))
+    "verify" (verify (:flavour args) (:root args) (:aspects args))
+    "next" (next-steps (:flavour args) (:root args) (:verify args))
+    "advance" (advance! (:flavour args)
+                         (:root args)
+                         (:verify args)
+                         (cond-> {}
+                           (contains? args :choice) (assoc :choice (:choice args))
+                           (contains? args :input) (assoc :input (:input args))
+                           (contains? args :notes) (assoc :notes (:notes args))
+                           (contains? args :step) (assoc :step (:step args))))
+    "stamp" (stamp! (:aspect args) (:root args))))
 
 (defn- op-registered? [runtime op-name]
   (boolean (some #(= (clojure.core/name op-name) (:name %)) (weaver/ops runtime))))
@@ -166,7 +347,7 @@
 (defn- register-or-replace-op! [runtime]
   (let [metadata {:doc "Inspect and converge repository conventions."
                   :arg-spec dresser-arg-spec
-                  :hook-class :read}]
+                  :hook-class :mutating}]
     (if (op-registered? runtime 'dresser)
       (weaver/replace-op! runtime 'dresser metadata 'skein.spools.dresser/dresser-op)
       (weaver/register-op! runtime 'dresser metadata 'skein.spools.dresser/dresser-op))))

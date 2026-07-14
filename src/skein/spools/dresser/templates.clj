@@ -17,8 +17,8 @@
        "\n"
        "(runtime/sync! runtime)\n"
        "(runtime/use! runtime :skein/spools-batteries\n"
-       "  {:ns 'skein.spools.batteries\n"
-       "   :call 'skein.spools.batteries/activate!})\n"))
+       "              {:ns 'skein.spools.batteries\n"
+       "               :call 'skein.spools.batteries/activate!})\n"))
 
 (def skein-init-layered
   (str ";; Startup entrypoint for this repo's coordination world. Keep one file per concern:\n"
