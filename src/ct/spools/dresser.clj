@@ -18,10 +18,6 @@
   (:import (java.io FileNotFoundException)
            (java.time LocalDate)))
 
-(def release-version
-  "Compatibility alias for the aspect registry's release version."
-  aspects/release-version)
-
 (def ^:dynamic *current-date*
   "Injectable date used by receipt stamping; nil selects the system date."
   nil)
@@ -84,7 +80,7 @@
       |running inspect, conflict, or setup steps.")
     :stamp
     (fmt/reflow
-     "|Stamp advances one receipt aspect only after the latest setup generation's
+     "|Stamp advances one receipt aspect only after the latest setup molecule's
       |complete expected gate set has shell-recorded success evidence.")}
    :quickstart
    (fmt/fill
@@ -223,7 +219,7 @@
         (map (fn [{:keys [id title]}] [(name id) title]))
         (:gates (aspects/aspect aspect-key))))
 
-(defn- latest-generation-gates [run-id aspect-key]
+(defn- latest-molecule-gates [run-id aspect-key]
   (let [active-root (workflow/current-root run-id)
         history (when-not active-root
                   (try
@@ -296,7 +292,7 @@
        expected)))))
 
 (defn stamp!
-  "Stamp one aspect from the latest setup generation's durable gate evidence."
+  "Stamp one aspect from the latest setup molecule's durable gate evidence."
   [aspect-key root]
   (spool/require-valid! ::specs/stamp-input
                         {:aspect aspect-key :root root}
@@ -309,10 +305,10 @@
     (let [entry (aspects/aspect aspect-key)
           run-id (target/run-id flavour root)
           expected (expected-gates aspect-key)
-          {:keys [root-id gates]} (latest-generation-gates run-id aspect-key)
+          {:keys [root-id gates]} (latest-molecule-gates run-id aspect-key)
           violations (if root-id
                        (evidence-violations expected gates)
-                       [{:violation :missing-generation
+                       [{:violation :missing-molecule
                          :run-id run-id}])]
       (when (seq violations)
         (spool/fail! (str "Dresser stamp evidence failed for " flavour "/" aspect-name
@@ -324,7 +320,7 @@
                                          violations)))
                      {:aspect aspect-key
                       :run-id run-id
-                      :generation root-id
+                      :molecule root-id
                       :violations violations}))
       (let [updated (receipt/merge-aspect (receipt/read-receipt root)
                                           aspect-key
@@ -377,7 +373,7 @@
                        :step {:type :string}}
                :positionals [{:name :flavour :required? true}
                              {:name :root :required? true}]}
-    "stamp" {:doc "Stamp one aspect after latest-generation gates pass."
+    "stamp" {:doc "Stamp one aspect after latest-molecule gates pass."
              :positionals [{:name :aspect :required? true}
                            {:name :root :required? true}]}}})
 

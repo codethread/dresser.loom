@@ -300,24 +300,24 @@
                             (conj base "--notes" "fixture driver completed step"))))
             (recur (inc driven))))))))
 
-(defn latest-generation-strands
-  "Return every strand under run-id's latest molecule generation."
+(defn latest-molecule-strands
+  "Return every strand under run-id's latest molecule."
   [runtime run-id]
   (let [root-id (or (:id (workflow/current-root run-id))
                     (get-in (peek (workflow/run-history run-id)) [:root :id]))]
     (:strands (graph/subgraph runtime [root-id]))))
 
 (defn poured-aspects
-  "Return dresser aspect keys present in run-id's latest generation."
+  "Return dresser aspect keys present in run-id's latest molecule."
   [runtime run-id]
   (into #{} (keep #(spool/attr-get % :dresser/aspect))
-        (latest-generation-strands runtime run-id)))
+        (latest-molecule-strands runtime run-id)))
 
 (defn all-run-strands
-  "Return strands from every retained generation for run-id."
+  "Return strands from every retained molecule for run-id."
   [runtime run-id]
-  (mapcat (fn [generation]
-            (:strands (graph/subgraph runtime [(get-in generation [:root :id])])))
+  (mapcat (fn [molecule]
+            (:strands (graph/subgraph runtime [(get-in molecule [:root :id])])))
           (workflow/run-history run-id)))
 
 (defn capture-exception

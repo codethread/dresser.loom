@@ -98,9 +98,9 @@
             (is (str/includes? (ex-message exception) "Active workflow run already exists"))
             (is (= run-id (:run-id (ex-data exception))))))))))
 
-(deftest repeated-run-uses-fresh-generation-and-rejects-stale-green-gates
+(deftest repeated-run-uses-fresh-molecule-and-rejects-stale-green-gates
   (fixtures/with-temp-dir [parent]
-    (let [root (fixtures/git-init-root! parent "generation")
+    (let [root (fixtures/git-init-root! parent "molecule")
           aspect-key "spool-repo/agent-docs"
           run-id (target/run-id "spool-repo" root)]
       (fixtures/write-spool-repo-step-files! root "Write AGENTS.md")
@@ -119,7 +119,7 @@
             (is (seq (set/intersection
                       #{:gate-not-closed :outcome-by :exit-code}
                       violations))
-                "generation-one green gates are stale for generation two")))))))
+                "molecule-one green gates are stale for molecule two")))))))
 
 (deftest apply-plan-records-decisions-and-kept-customization-can-converge
   (fixtures/with-temp-dir [parent]
@@ -213,7 +213,7 @@
           (is (= :current (get-in (op! runtime "plan" (str root))
                                   [:aspects aspect-key])))
           (op! runtime "verify" "spool-repo" (str root) "--aspects" aspect-key)
-          (let [strands (fixtures/latest-generation-strands runtime run-id)
+          (let [strands (fixtures/latest-molecule-strands runtime run-id)
                 ready (op! runtime "next" "spool-repo" (str root) "--verify")]
             (is (= 1 (count ready)))
             (is (= #{"shell"} (set (map :gate ready))))

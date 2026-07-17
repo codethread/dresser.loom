@@ -50,8 +50,8 @@ checkpoint and accepts `--step`, `--notes`, `--choice`, and `--input`. Add
 shell gates, so normally the shell executor advances them.
 
 `strand dresser stamp <flavour>/<aspect> <root>` validates the latest setup
-generation's durable gate evidence and updates the receipt for one aspect.
-Stamp never uses a verify run or an older setup generation as evidence.
+molecule's durable gate evidence and updates the receipt for one aspect.
+Stamp never uses a verify run or an older setup molecule as evidence.
 
 ## Run lifecycle
 
@@ -75,7 +75,7 @@ Setup run ids have the form
 `dresser-<flavour>-<basename>-<root-hash>`. Verify run ids use the
 `dresser-verify-` prefix. One active run is allowed per flavour, canonical root,
 and mode; both flavours and both modes have distinct identities. Dresser always
-addresses the latest retained generation for that run id.
+addresses the latest retained molecule for that run id.
 
 ## Receipt, plan, verify, and stamp
 
@@ -110,7 +110,7 @@ classification states are:
 steps removed by conditions. Only the registry gates run. It reports actual
 tree status but does not change the receipt.
 
-`stamp` accepts an aspect only when the latest setup generation contains its
+`stamp` accepts an aspect only when the latest setup molecule contains its
 complete expected gate set and each gate is closed by `shell`, has exit code
 zero, and carries no non-blank `gate/error`. Missing, unexpected, duplicate,
 force-closed, failed, or historical gates are rejected. On acceptance, stamp
@@ -153,7 +153,7 @@ The shell executor scans the now-ready, unclaimed gate again. When it exits
 zero, continue until the run is done, then call `stamp`. A crash leaving
 `shell/running` without a live process uses the same recovery pattern after
 clearing `shell/running`. Never stamp by force-closing a gate: stamp requires
-executor-recorded evidence from the latest setup generation.
+executor-recorded evidence from the latest setup molecule.
 
 Installation fails loudly unless the workflow lifecycle is on the classpath
 and the `:shell` executor is registered. Unknown templates, flavours, aspects,

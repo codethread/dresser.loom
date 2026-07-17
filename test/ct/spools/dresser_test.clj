@@ -25,7 +25,7 @@
            (java.nio.file.attribute FileAttribute)))
 
 (deftest dresser-namespace-loads
-  (is (some? dresser/release-version)))
+  (is (ifn? dresser/install!)))
 
 (defn- with-runtime [f]
   (t/with-weaver-world [ctx {:storage :sqlite-memory}]
@@ -760,7 +760,7 @@
                     ["verify" "spool-repo" root "--aspects" selected])
         (fixtures/assert-done! (fixtures/wait-for-attention! runtime run-id))
         (let [gates (filterv #(= "shell" (spool/attr-get % :workflow/gate))
-                             (fixtures/latest-generation-strands runtime run-id))]
+                             (fixtures/latest-molecule-strands runtime run-id))]
           (is (= #{"spool-repo/skein-workspace" "spool-repo/agent-docs"}
                  (set (map #(spool/attr-get % :dresser/aspect) gates))))
           (is (every? #(= "closed" (:state %)) gates))
@@ -831,8 +831,8 @@
           (let [exception (thrown-exception #(dresser/stamp! aspect-key root))
                 data (ex-data exception)]
             (is (str/includes? (ex-message exception) "stamp evidence failed"))
-            (is (nil? (:generation data)))
-            (is (= [{:violation :missing-generation
+            (is (nil? (:molecule data)))
+            (is (= [{:violation :missing-molecule
                      :run-id (target/run-id "skein-dir" root)}]
                    (:violations data)))
             (is (nil? (receipt/read-receipt root)))))))))
