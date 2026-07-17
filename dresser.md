@@ -17,12 +17,12 @@ Dependencies are closed automatically when a subset is selected.
 
 | Flavour | Aspect | Version | Depends on | Gate ids |
 |---|---|---:|---|---|
-| `spool-repo` | `repo-skeleton` | 1 | — | `test-suite`, `readme-sections` |
-| `spool-repo` | `skein-workspace` | 1 | — | `workspace-files` |
+| `spool-repo` | `repo-skeleton` | 3 | — | `test-suite`, `readme-sections` |
+| `spool-repo` | `skein-workspace` | 2 | — | `workspace-files` |
 | `spool-repo` | `agent-docs` | 1 | — | `agents-md` |
-| `spool-repo` | `quality` | 1 | `spool-repo/repo-skeleton` | `fmt-check`, `lint` |
-| `skein-dir` | `workspace` | 1 | — | `workspace-files`, `init-header` |
-| `skein-dir` | `quality` | 1 | `skein-dir/workspace` | `fmt-check`, `lint` |
+| `spool-repo` | `quality` | 2 | `spool-repo/repo-skeleton` | `fmt-check`, `lint` |
+| `skein-dir` | `workspace` | 2 | — | `workspace-files`, `init-header` |
+| `skein-dir` | `quality` | 2 | `skein-dir/workspace` | `fmt-check`, `lint` |
 | `skein-dir` | `agent-docs` | 1 | `skein-dir/workspace` | `agent-docs-files` |
 
 `spool-repo` describes a shared-spool repository with source, tests, root
