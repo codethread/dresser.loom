@@ -203,6 +203,10 @@
   (spool/reject-unknown-keys! "dresser advance"
                               #{:choice :input :notes :step}
                               opts)
+  ;; The engine publishes a caller-supplied :by, but dresser deliberately pins it
+  ;; and exposes no --by. `advance!` acts on any ready step, gates included, so a
+  ;; caller-chosen :by would let `advance --step <gate-id> --by shell` forge the
+  ;; workflow/outcome-by = "shell" evidence stamp! trusts.
   (workflow/advance! (addressed-run-id flavour root verify?)
                      (assoc opts :by "dresser")))
 
