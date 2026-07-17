@@ -84,7 +84,7 @@
     (is (= :workflow (:prerequisite workflow-missing)))
     (is (= 'skein.spools.workflow/start! (:symbol workflow-missing)))
     (is (= :shell (:prerequisite shell-missing)))
-    (is (= #{} (:registered-executors shell-missing)))
+    (is (= #{} (:executors shell-missing)))
     (is (ifn? (:workflow success)))
     (is (ifn? (:shell success)))))
 
@@ -236,7 +236,7 @@
         (is (= expected-ids (mapv :id setup-steps)))
         (is (= dependencies
                (into {} (map (juxt :id :depends-on)) setup-steps)))
-        (is (= "checkpoint" (:kind (second setup-steps))))
+        (is (= "checkpoint" (:role (second setup-steps))))
         (is (= (set gate-ids)
                (into #{} (keep #(when (= "shell" (:gate %)) (:id %)))
                      setup-steps)))
@@ -346,7 +346,7 @@
     (doseq [[_ modes] topology]
       (is (= #{:setup :verify-only} (set (keys modes))))
       (is (seq (get-in modes [:setup :steps])))
-      (is (every? #(= "step" (:kind %))
+      (is (every? #(= "step" (:role %))
                   (get-in modes [:verify-only :steps]))))
     (is (= (aspects/releases aspects/release-version)
            (aspects/fingerprint topology))
@@ -594,7 +594,7 @@
                 "dresser/gate-id"]
                (:keys declaration)))
         (is (= (set (keys dresser-workflows/workflow-definitions))
-               (set (keys (workflow/registered-workflows)))))))))
+               (set (keys (workflow/workflows)))))))))
 
 (deftest read-only-ops-return-declared-shapes
   (with-runtime
@@ -730,7 +730,7 @@
                                             "--step" (:id checkpoint)
                                             "--choice" "apply-plan"
                                             "--input" "decisions=replace"])]
-              (is (= "checkpoint" (:kind checkpoint)))
+              (is (= "checkpoint" (:role checkpoint)))
               (is (= "Write layered workspace"
                      (get-in after-choice [:ready 0 :title]))))
             (let [verify (weaver/op! runtime 'dresser
@@ -766,7 +766,7 @@
           (is (every? #(= "closed" (:state %)) gates))
           (is (every? #(= "shell" (spool/attr-get % :workflow/outcome-by)) gates))
           (is (every? #(zero? (spool/attr-get % :shell/exit-code)) gates))
-          (is (every? #(nil? (spool/attr-get % :shell/error)) gates)))))))
+          (is (every? #(nil? (spool/attr-get % :gate/error)) gates)))))))
 
 (defn- evidence-workflow [aspect-key gates]
   (apply workflow/workflow
@@ -913,11 +913,13 @@
                 refusal (thrown-data #(dresser/stamp! aspect-key root))]
             (is (= :stalled (:reason state)))
             (is (= "Check init header" (:title failed-gate)))
-            (is (some? (spool/attr-get failed-gate :shell/error)))
-            (is (contains? (violation-types refusal "init-header") :shell-error))
+            (is (some? (spool/attr-get failed-gate :gate/error)))
+            (is (contains? (violation-types refusal "init-header") :gate-error))
             (fixtures/write-step-files! root "Write layered workspace")
+            ;; The executor's blank re-arm idiom, not a delete: dresser reads
+            ;; gate/error exactly as the executors write it.
             (weaver/update runtime (:id failed-gate)
-                           {:attributes {"shell/error" nil}})
+                           {:attributes {"gate/error" ""}})
             (is (= :done (:reason (fixtures/drive-skein-dir! runtime root))))
             (is (= :current (:plan (dresser/stamp! aspect-key root))))))))))
 

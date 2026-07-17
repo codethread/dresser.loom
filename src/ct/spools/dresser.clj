@@ -39,7 +39,7 @@
     (when-not (contains? executors :shell)
       (spool/fail! "Dresser requires the shell workflow executor"
                    {:prerequisite :shell
-                    :registered-executors (set (keys executors))}))
+                    :executors (set (keys executors))}))
     {:workflow lifecycle :shell (:shell executors)}))
 
 (defn- current-fingerprint []
@@ -190,13 +190,13 @@
   (let [root (target/resolve-root root)]
     ((if verify? target/verify-run-id target/run-id) flavour root)))
 
-(defn next-steps
+(defn ready
   "Return the ready frontier for a setup run, or verify run when verify? is true."
   [flavour root verify?]
-  (spool/require-valid! ::specs/next-input
+  (spool/require-valid! ::specs/ready-input
                         {:flavour flavour :root root :verify verify?}
-                        "Dresser lifecycle next input has an invalid shape")
-  (workflow/next-steps (addressed-run-id flavour root verify?)))
+                        "Dresser lifecycle ready input has an invalid shape")
+  (workflow/ready (addressed-run-id flavour root verify?)))
 
 (defn advance!
   "Advance a setup run, or verify run when verify? is true."
@@ -287,10 +287,11 @@
                         :actual (attr gate :shell/exit-code)
                         :expected 0})
 
-                 (some? (attr gate :shell/error))
-                 (conj {:violation :shell-error
+                 ;; A blank stamp is the executor's clearing idiom, not a failure.
+                 (specs/non-blank-string? (attr gate :gate/error))
+                 (conj {:violation :gate-error
                         :gate gate-id
-                        :actual (attr gate :shell/error)})))
+                        :actual (attr gate :gate/error)})))
              matches))))
        expected)))))
 
@@ -399,7 +400,7 @@
           "plan" (plan (:root args))
           "start" (start (:flavour args) (:root args) (:aspects args))
           "verify" (verify (:flavour args) (:root args) (:aspects args))
-          "next" (next-steps (:flavour args) (:root args) (:verify args))
+          "next" (ready (:flavour args) (:root args) (:verify args))
           "advance" (advance! (:flavour args)
                               (:root args)
                               (:verify args)
@@ -427,7 +428,7 @@
 (defn install!
   "Install dresser vocabulary, workflows, and declared-subcommand op."
   []
-  (check-prereqs! requiring-resolve (workflow/registered-executors))
+  (check-prereqs! requiring-resolve (workflow/executors))
   (let [runtime (current/runtime)]
     {:installed true
      :namespace 'ct.spools.dresser

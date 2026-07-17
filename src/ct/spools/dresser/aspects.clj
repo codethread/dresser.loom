@@ -9,13 +9,14 @@
 
 (def release-version
   "Monotonic release for the complete aspect registry."
-  3)
+  4)
 
 (def releases
   "Published release fingerprints. Historical entries are immutable."
   {1 "03cc25f420a0ef5b961d909205af6c0f2990819f0d858c6797a58ce1390ae498"
    2 "13bc922fb126113db697af8bf825c83fe0908a92536e7e7d9c983f6d39d282b3"
-   3 "3241b836a15e41a30428db2d09df9b24a4570abb1f273c50f898dc2b19ca1f89"})
+   3 "3241b836a15e41a30428db2d09df9b24a4570abb1f273c50f898dc2b19ca1f89"
+   4 "8a0623a366b78d71a5dce9304a82904b38ad80f9454a54550d4c385bfb39f036"})
 
 (def ^:private conflict-discipline
   "Honor the recorded conflict decisions for every owned file: keep preserves the customization, merge reconciles it with the canonical template, and replace uses the canonical template.")

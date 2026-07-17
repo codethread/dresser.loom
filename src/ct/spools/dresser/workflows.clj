@@ -243,7 +243,7 @@
   (let [params {:root "<root>" :verify-only verify-only}
         description (workflow/describe ((aspect-workflow aspect-key) params)
                                        params)]
-    {:steps (mapv #(select-keys % [:id :kind :depends-on])
+    {:steps (mapv #(select-keys % [:id :role :depends-on])
                   (:steps description))
      :gates (into [] (keep #(when (:gate %) (:id %))) (:steps description))}))
 

@@ -79,9 +79,9 @@
           (advance-ready! runtime "spool-repo" root)
           (advance-ready! runtime "skein-dir" root)
           (is (= "checkpoint"
-                 (:kind (first (op! runtime "next" "spool-repo" (str root))))))
+                 (:role (first (op! runtime "next" "spool-repo" (str root))))))
           (is (= "checkpoint"
-                 (:kind (first (op! runtime "next" "skein-dir" (str root)))))))))))
+                 (:role (first (op! runtime "next" "skein-dir" (str root)))))))))))
 
 (deftest second-start-on-active-flavour-root-mode-fails-loudly
   (fixtures/with-temp-dir [parent]

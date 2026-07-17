@@ -87,7 +87,7 @@
   (s/keys :opt-un [::choice ::input ::notes ::step]))
 (s/def ::start-input
   (s/keys :req-un [::flavour ::root ::verify-only ::selection]))
-(s/def ::next-input (s/keys :req-un [::flavour ::root ::verify]))
+(s/def ::ready-input (s/keys :req-un [::flavour ::root ::verify]))
 (s/def ::advance-input
   (s/and map?
          #(s/valid? ::flavour (:flavour %))

@@ -112,7 +112,7 @@ tree status but does not change the receipt.
 
 `stamp` accepts an aspect only when the latest setup generation contains its
 complete expected gate set and each gate is closed by `shell`, has exit code
-zero, and carries no `shell/error`. Missing, unexpected, duplicate,
+zero, and carries no non-blank `gate/error`. Missing, unexpected, duplicate,
 force-closed, failed, or historical gates are rejected. On acceptance, stamp
 atomically merges the aspect version, current release, release fingerprint, and
 application date into the receipt.
@@ -127,24 +127,27 @@ The dresser namespace is declared during `install!`.
 | `dresser/aspect` | aspect steps and gates | Full `<flavour>/<aspect>` key. |
 | `dresser/version` | aspect steps and gates | Registry version of that aspect. |
 | `dresser/root` | run roots and steps | Canonical absolute target root. |
+| `dresser/gate-id` | aspect gates | Registry gate id the stamp evidence matches on. |
 
 Shell gates additionally carry the standard `workflow/gate` and `shell/*`
-request/outcome attributes. Dresser does not define alternate executor state.
+request/outcome attributes, plus `gate/error` — the failure stamp shared by every
+gate executor. Dresser reads these; it defines no alternate executor state.
 
 ## Failure and recovery
 
 A non-zero command, timeout, spawn failure, or invalid gate request leaves the
-gate ready and stamps `shell/error`; it does not close the gate or the run.
-Inspect the gate's `shell/error`, `shell/output`, and `shell/exit-code`, then fix
+gate ready and stamps `gate/error`; it does not close the gate or the run.
+Inspect the gate's `gate/error`, `shell/output`, and `shell/exit-code`, then fix
 the target or gate request. Clear the durable error to request a deterministic
-rerun. Clearing means **deleting** the attribute: an explicit `nil` value rides
-the storage layer's `json_patch` merge as a deletion, whereas the CLI's
-`--attr shell/error=` writes an empty string that still counts as present and
-still blocks `stamp`. Delete from the weaver REPL:
+rerun:
 
-```clojure
-(repl/update! "<gate-id>" {:attributes {"shell/error" nil}})
+```sh
+strand update <gate-id> --attr gate/error=
 ```
+
+A blank `gate/error` is the executors' clearing idiom, so dresser reads the key
+exactly as they write it: blank is cleared, and only a non-blank stamp blocks
+`stamp`. Deleting the attribute outright clears it too.
 
 The shell executor scans the now-ready, unclaimed gate again. When it exits
 zero, continue until the run is done, then call `stamp`. A crash leaving

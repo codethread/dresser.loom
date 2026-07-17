@@ -219,9 +219,9 @@
 
 (defn- attention [runtime run-id]
   (shell-executor/scan!)
-  (let [ready (workflow/next-steps run-id)
+  (let [ready (workflow/ready run-id)
         strands (mapv #(weaver/show runtime (:id %)) ready)
-        stalled (some #(when (spool/attr-get % :shell/error) %) strands)
+        stalled (some #(when (spool/attr-get % :gate/error) %) strands)
         driver-ready (filterv #(not= "shell" (:gate %)) ready)]
     (cond
       (workflow/done? run-id) {:reason :done :ready ready}
@@ -240,7 +240,7 @@
     :on-timeout (fn [_]
                   (throw (ex-info "Timed out waiting for dresser run"
                                   {:run-id run-id
-                                   :ready (workflow/next-steps run-id)})))}))
+                                   :ready (workflow/ready run-id)})))}))
 
 (defn- require-driver-budget! [run-id driven]
   (when (>= driven max-driver-steps)
@@ -248,7 +248,7 @@
                     {:run-id run-id
                      :driven driven
                      :max-driver-steps max-driver-steps
-                     :ready (workflow/next-steps run-id)}))))
+                     :ready (workflow/ready run-id)}))))
 
 (defn drive-skein-dir!
   "Drive all agent-owned work, letting the real shell executor own gates.
@@ -268,7 +268,7 @@
            (let [_ (require-driver-budget! run-id driven)
                  step (first ready)
                  base ["advance" "skein-dir" (str root)]]
-             (if (= "checkpoint" (:kind step))
+             (if (= "checkpoint" (:role step))
                (weaver/op! runtime 'dresser (conj base "--choice" "clean"))
                (do
                  (when-not (str/starts-with? (:title step) "Inspect ")
@@ -291,7 +291,7 @@
           (let [_ (require-driver-budget! run-id driven)
                 step (first ready)
                 base ["advance" "spool-repo" (str root)]]
-            (if (= "checkpoint" (:kind step))
+            (if (= "checkpoint" (:role step))
               (weaver/op! runtime 'dresser (conj base "--choice" "clean"))
               (do
                 (when-not (str/starts-with? (:title step) "Inspect ")
