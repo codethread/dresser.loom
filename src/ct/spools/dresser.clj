@@ -95,10 +95,13 @@
 (defn aspects-view
   "Return the versioned registry projection exposed by `dresser aspects`."
   []
-  {:release aspects/release-version
-   :fingerprint (current-fingerprint)
-   :releases (into (sorted-map) aspects/releases)
-   :aspects (aspect-projection)})
+  (let [view {:release aspects/release-version
+              :fingerprint (current-fingerprint)
+              :releases (into (sorted-map) aspects/releases)
+              :aspects (aspect-projection)}]
+    (spool/require-valid! ::specs/registry-view view
+                          "Dresser registry view has an invalid shape")
+    view))
 
 (defn template-view
   "Return one canonical template, rendering any supplied params."
@@ -187,7 +190,8 @@
     ((if verify? target/verify-run-id target/run-id) flavour root)))
 
 (defn ready
-  "Return the ready frontier for a setup run, or verify run when verify? is true."
+  "Return `skein.spools.workflow/ready`'s engine-owned frontier unchanged for a
+  setup run, or verify run when verify? is true."
   [flavour root verify?]
   (spool/require-valid! ::specs/ready-input
                         {:flavour flavour :root root :verify verify?}

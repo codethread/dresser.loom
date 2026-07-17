@@ -104,7 +104,7 @@
   [receipt registry-view]
   (spool/require-valid! ::specs/receipt receipt
                         "Dresser receipt has an invalid shape")
-  (spool/require-valid! ::specs/registry-view registry-view
+  (spool/require-valid! ::specs/classification-registry-view registry-view
                         "Dresser registry view has an invalid shape")
   (let [registry-aspects (:aspects registry-view)
         receipt-aspects (:aspects receipt)]

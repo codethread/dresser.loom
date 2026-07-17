@@ -250,9 +250,12 @@
 (defn describe-topology
   "Return deterministic setup and verify-only topology for every aspect."
   []
-  (into (sorted-map)
-        (map (fn [aspect-key]
-               [aspect-key
-                {:setup (topology-mode aspect-key false)
-                 :verify-only (topology-mode aspect-key true)}]))
-        (sort (keys aspects/registry))))
+  (let [topology (into (sorted-map)
+                       (map (fn [aspect-key]
+                              [aspect-key
+                               {:setup (topology-mode aspect-key false)
+                                :verify-only (topology-mode aspect-key true)}]))
+                       (sort (keys aspects/registry)))]
+    (spool/require-valid! ::specs/topology topology
+                          "Dresser topology has an invalid shape")
+    topology))

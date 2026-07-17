@@ -47,15 +47,56 @@
 (s/def ::receipt (s/nilable ::receipt-map))
 
 (s/def ::releases (s/map-of nat-int? non-blank-string? :min-count 1))
-(s/def ::registry-aspects (s/map-of ::aspect-key nat-int? :min-count 1))
-(s/def ::registry-view
+(s/def ::classification-aspects (s/map-of ::aspect-key nat-int? :min-count 1))
+(s/def ::classification-registry-view
   (s/and
    map?
    #(every? (set (keys %)) [:release :fingerprint :releases :aspects])
    #(nat-int? (:release %))
    #(non-blank-string? (:fingerprint %))
    #(s/valid? ::releases (:releases %))
-   #(s/valid? ::registry-aspects (:aspects %))))
+   #(s/valid? ::classification-aspects (:aspects %))))
+
+(s/def ::registry-projection-entry
+  (s/and
+   map?
+   #(= #{:version :deps :gates} (set (keys %)))
+   #(s/valid? ::version (:version %))
+   #(s/valid? ::deps (:deps %))
+   #(s/valid? (s/coll-of non-blank-string? :kind vector?) (:gates %))))
+(s/def ::registry-projection-aspects
+  (s/map-of ::aspect-key ::registry-projection-entry :min-count 1))
+(s/def ::registry-view
+  (s/and
+   map?
+   #(= #{:release :fingerprint :releases :aspects} (set (keys %)))
+   #(s/valid? ::release (:release %))
+   #(s/valid? ::fingerprint (:fingerprint %))
+   #(s/valid? ::releases (:releases %))
+   #(s/valid? ::registry-projection-aspects (:aspects %))))
+
+(s/def ::topology-step
+  (s/and
+   map?
+   #(= #{:id :role :depends-on} (set (keys %)))
+   #(keyword? (:id %))
+   #(non-blank-string? (:role %))
+   #(s/valid? (s/coll-of keyword? :kind vector?) (:depends-on %))))
+(s/def ::topology-steps (s/coll-of ::topology-step :kind vector? :min-count 1))
+(s/def ::topology-gates (s/coll-of keyword? :kind vector? :min-count 1))
+(s/def ::topology-mode
+  (s/and
+   map?
+   #(= #{:steps :gates} (set (keys %)))
+   #(s/valid? ::topology-steps (:steps %))
+   #(s/valid? ::topology-gates (:gates %))))
+(s/def ::topology-modes
+  (s/and
+   map?
+   #(= #{:setup :verify-only} (set (keys %)))
+   #(s/valid? ::topology-mode (:setup %))
+   #(s/valid? ::topology-mode (:verify-only %))))
+(s/def ::topology (s/map-of ::aspect-key ::topology-modes :min-count 1))
 
 (s/def ::template-name non-blank-string?)
 (s/def ::template-param-key (s/or :keyword keyword? :string non-blank-string?))

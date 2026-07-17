@@ -44,6 +44,8 @@ the active registry. `strand dresser start <flavour> <root>` starts a setup run.
 under dependencies.
 
 `strand dresser next <flavour> <root>` returns the setup run's ready frontier.
+It passes through the step-view vector owned by
+`skein.spools.workflow/ready` without reshaping it.
 `strand dresser advance <flavour> <root>` completes one ready agent step or
 checkpoint and accepts `--step`, `--notes`, `--choice`, and `--input`. Add
 `--verify` to either command to address the verify run. Verify runs contain only
