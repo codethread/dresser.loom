@@ -354,33 +354,40 @@
   {:op "dresser"
    :doc "Inspect and converge repository conventions."
    :subcommands
-   {"about" {:doc "Explain dresser's conventions and receipt semantics."}
-    "aspects" {:doc "List the installed aspect registry and release lineage."}
+   {"about" {:doc "Explain dresser's conventions and receipt semantics."
+             :hook-class :read :deadline-class :standard}
+    "aspects" {:doc "List the installed aspect registry and release lineage."
+               :hook-class :read :deadline-class :standard}
     "template" {:doc "Render one canonical template."
                 :flags {:param {:type :map
                                 :doc "Template parameter as name=value; repeatable keys accumulate into a map."}}
                 :positionals [{:name :name
                                :required? true
-                               :doc "Template key, such as spool-repo/deps.edn."}]}
+                               :doc "Template key, such as spool-repo/deps.edn."}]
+                :hook-class :read :deadline-class :standard}
     "plan" {:doc "Compare a target receipt with this registry release."
             :positionals [{:name :root
                            :required? true
-                           :doc "Existing git worktree root."}]}
+                           :doc "Existing git worktree root."}]
+            :hook-class :read :deadline-class :standard}
     "start" {:doc "Start a setup convergence run."
              :flags {:aspects {:type :string
                                :doc "Comma-separated full aspect keys."}}
              :positionals [{:name :flavour :required? true}
-                           {:name :root :required? true}]}
+                           {:name :root :required? true}]
+             :hook-class :mutating :deadline-class :standard}
     "verify" {:doc "Start a verify-only run."
               :flags {:aspects {:type :string
                                 :doc "Comma-separated full aspect keys."}}
               :positionals [{:name :flavour :required? true}
-                            {:name :root :required? true}]}
+                            {:name :root :required? true}]
+              :hook-class :mutating :deadline-class :standard}
     "next" {:doc "Return the run's ready frontier."
             :flags {:verify {:type :boolean
                              :doc "Address the verify-only run."}}
             :positionals [{:name :flavour :required? true}
-                          {:name :root :required? true}]}
+                          {:name :root :required? true}]
+            :hook-class :read :deadline-class :standard}
     "advance" {:doc "Advance one ready run step or checkpoint."
                :flags {:verify {:type :boolean
                                 :doc "Address the verify-only run."}
@@ -389,10 +396,12 @@
                        :notes {:type :string}
                        :step {:type :string}}
                :positionals [{:name :flavour :required? true}
-                             {:name :root :required? true}]}
+                             {:name :root :required? true}]
+               :hook-class :mutating :deadline-class :standard}
     "stamp" {:doc "Stamp one aspect after latest-molecule gates pass."
              :positionals [{:name :aspect :required? true}
-                           {:name :root :required? true}]}}})
+                           {:name :root :required? true}]
+             :hook-class :mutating :deadline-class :standard}}})
 
 (defn dresser-op
   "Dispatch parsed dresser subcommands."
@@ -407,22 +416,22 @@
         (spool/require-valid! arg-spec args
                               "Dresser subcommand input has an invalid shape")
         (case subcommand
-          "about" (about)
-          "aspects" (aspects-view)
-          "template" (template-view (:name args) (:param args))
-          "plan" (plan (:root args))
-          "start" (start (:flavour args) (:root args) (:aspects args))
-          "verify" (verify (:flavour args) (:root args) (:aspects args))
-          "next" (ready (:flavour args) (:root args) (:verify args))
-          "advance" (advance! (:flavour args)
-                              (:root args)
-                              (:verify args)
-                              (cond-> {}
-                                (contains? args :choice) (assoc :choice (:choice args))
-                                (contains? args :input) (assoc :input (keywordize-input (:input args)))
-                                (contains? args :notes) (assoc :notes (:notes args))
-                                (contains? args :step) (assoc :step (:step args))))
-          "stamp" (stamp! (:aspect args) (:root args))))
+          ["about"] (about)
+          ["aspects"] (aspects-view)
+          ["template"] (template-view (:name args) (:param args))
+          ["plan"] (plan (:root args))
+          ["start"] (start (:flavour args) (:root args) (:aspects args))
+          ["verify"] (verify (:flavour args) (:root args) (:aspects args))
+          ["next"] (ready (:flavour args) (:root args) (:verify args))
+          ["advance"] (advance! (:flavour args)
+                                (:root args)
+                                (:verify args)
+                                (cond-> {}
+                                  (contains? args :choice) (assoc :choice (:choice args))
+                                  (contains? args :input) (assoc :input (keywordize-input (:input args)))
+                                  (contains? args :notes) (assoc :notes (:notes args))
+                                  (contains? args :step) (assoc :step (:step args))))
+          ["stamp"] (stamp! (:aspect args) (:root args))))
       (spool/fail! "Unsupported dresser subcommand"
                    {:subcommand subcommand
                     :allowed (vec (sort allowed))}))))
@@ -432,8 +441,7 @@
 
 (defn- register-or-replace-op! [runtime]
   (let [metadata {:doc "Inspect and converge repository conventions."
-                  :arg-spec dresser-arg-spec
-                  :hook-class :mutating}]
+                  :arg-spec dresser-arg-spec}]
     (if (op-registered? runtime 'dresser)
       (weaver/replace-op! runtime 'dresser metadata 'ct.spools.dresser/dresser-op)
       (weaver/register-op! runtime 'dresser metadata 'ct.spools.dresser/dresser-op))))

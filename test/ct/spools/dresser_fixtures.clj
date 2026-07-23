@@ -7,6 +7,7 @@
             [clojure.string :as str]
             [clojure.test :refer [is]]
             [skein.api.graph.alpha :as graph]
+            [skein.api.runtime.alpha :as runtime]
             [skein.api.spool.alpha :as spool]
             [skein.api.weaver.alpha :as weaver]
             [skein.core.weaver.runtime :as weaver-runtime]
@@ -232,8 +233,9 @@
 (defn wait-for-attention!
   "Poll until a run is done, stalled, or needs its driving agent."
   [runtime run-id]
-  (spool/poll-until-deadline!
-   {:deadline (+ (System/currentTimeMillis) attention-timeout-ms)
+  (spool/poll-until!
+   (runtime/clock runtime)
+   {:timeout-ms attention-timeout-ms
     :poll-ms 25
     :check #(attention runtime run-id)
     :pred->result identity

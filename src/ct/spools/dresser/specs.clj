@@ -140,7 +140,9 @@
          #(s/valid? ::aspect-key (:aspect %))
          #(s/valid? ::root (:root %))))
 
-(s/def ::subcommand non-blank-string?)
+;; The weaver hands :subcommand through as the matched path vector, e.g.
+;; ["advance"]; dresser's surface is depth-1 so every path has one segment.
+(s/def ::subcommand (s/coll-of non-blank-string? :kind vector? :min-count 1))
 (s/def ::op-input
   (s/and map?
          #(contains? % :op/args)
@@ -148,31 +150,31 @@
          #(s/valid? ::subcommand (get-in % [:op/args :subcommand]))))
 
 (def op-args-specs
-  {"about" (s/keys :req-un [::subcommand])
-   "aspects" (s/keys :req-un [::subcommand])
-   "template" (s/and map?
-                     #(s/valid? ::template-name (:name %))
-                     #(or (not (contains? % :param))
-                          (s/valid? ::template-params (:param %))))
-   "plan" (s/keys :req-un [::subcommand ::root])
-   "start" (s/and map?
-                  #(s/valid? ::flavour (:flavour %))
-                  #(s/valid? ::root (:root %))
-                  #(or (not (contains? % :aspects)) (string? (:aspects %))))
-   "verify" (s/and map?
-                   #(s/valid? ::flavour (:flavour %))
-                   #(s/valid? ::root (:root %))
-                   #(or (not (contains? % :aspects)) (string? (:aspects %))))
-   "next" (s/and map?
-                 #(s/valid? ::flavour (:flavour %))
-                 #(s/valid? ::root (:root %))
-                 #(or (not (contains? % :verify)) (boolean? (:verify %))))
-   "advance" (s/and map?
+  {["about"] (s/keys :req-un [::subcommand])
+   ["aspects"] (s/keys :req-un [::subcommand])
+   ["template"] (s/and map?
+                       #(s/valid? ::template-name (:name %))
+                       #(or (not (contains? % :param))
+                            (s/valid? ::template-params (:param %))))
+   ["plan"] (s/keys :req-un [::subcommand ::root])
+   ["start"] (s/and map?
                     #(s/valid? ::flavour (:flavour %))
                     #(s/valid? ::root (:root %))
-                    #(or (not (contains? % :verify)) (boolean? (:verify %)))
-                    #(s/valid? ::advance-opts
-                               (select-keys % [:choice :input :notes :step])))
-   "stamp" (s/and map?
-                  #(s/valid? ::aspect-key (:aspect %))
-                  #(s/valid? ::root (:root %)))})
+                    #(or (not (contains? % :aspects)) (string? (:aspects %))))
+   ["verify"] (s/and map?
+                     #(s/valid? ::flavour (:flavour %))
+                     #(s/valid? ::root (:root %))
+                     #(or (not (contains? % :aspects)) (string? (:aspects %))))
+   ["next"] (s/and map?
+                   #(s/valid? ::flavour (:flavour %))
+                   #(s/valid? ::root (:root %))
+                   #(or (not (contains? % :verify)) (boolean? (:verify %))))
+   ["advance"] (s/and map?
+                      #(s/valid? ::flavour (:flavour %))
+                      #(s/valid? ::root (:root %))
+                      #(or (not (contains? % :verify)) (boolean? (:verify %)))
+                      #(s/valid? ::advance-opts
+                                 (select-keys % [:choice :input :notes :step])))
+   ["stamp"] (s/and map?
+                    #(s/valid? ::aspect-key (:aspect %))
+                    #(s/valid? ::root (:root %)))})

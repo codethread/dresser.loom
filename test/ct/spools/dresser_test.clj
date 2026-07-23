@@ -381,9 +381,11 @@
     (is (= :current (get classification "spool-repo/agent-docs")))))
 
 (deftest dresser-workflows-register-stable-names
-  (is (= (set (keys dresser-workflows/workflow-definitions))
-         (set (keys (dresser-workflows/register-workflows!)))))
-  (is (= 10 (count dresser-workflows/workflow-definitions))))
+  (with-runtime
+    (fn [_ _]
+      (is (= (set (keys dresser-workflows/workflow-definitions))
+             (set (keys (dresser-workflows/register-workflows!)))))
+      (is (= 10 (count dresser-workflows/workflow-definitions))))))
 
 (defn- temp-directory ^Path []
   (Files/createTempDirectory "dresser-test-" (make-array FileAttribute 0)))
@@ -566,12 +568,12 @@
 
 (deftest unsupported-dresser-subcommand-fails-with-alternatives
   (let [exception (thrown-exception
-                   #(dresser/dresser-op {:op/args {:subcommand "explode"}}))
+                   #(dresser/dresser-op {:op/args {:subcommand ["explode"]}}))
         data (ex-data exception)]
     (is (= "Unsupported dresser subcommand" (ex-message exception)))
-    (is (= "explode" (:subcommand data)))
-    (is (= #{"about" "aspects" "template" "plan" "start" "verify"
-             "next" "advance" "stamp"}
+    (is (= ["explode"] (:subcommand data)))
+    (is (= #{["about"] ["aspects"] ["template"] ["plan"] ["start"] ["verify"]
+             ["next"] ["advance"] ["stamp"]}
            (set (:allowed data))))))
 
 (defn- git-init-root! ^Path [^Path parent name]
@@ -588,8 +590,10 @@
             second-install (dresser/install!)
             op (weaver/resolve-op runtime 'dresser)
             subcommands (get-in op [:arg-spec :subcommands])
-            help (weaver/op! runtime 'dresser ["help"])
-            declaration (vocab/declaration runtime :attr-namespace "dresser")]
+            help (weaver/op! runtime 'help ["dresser"])
+            declaration (->> (vocab/declarations runtime {:kind :attr-namespace})
+                             (filter #(= "dresser" (:name %)))
+                             first)]
         (is (true? (:installed first-install)))
         (is (true? (:installed second-install)))
         (is (= #{"about" "aspects" "template" "plan" "start" "verify"
@@ -597,8 +601,12 @@
                (set (keys subcommands))))
         (is (= #{"about" "aspects" "template" "plan" "start" "verify"
                  "next" "advance" "stamp"}
-               (set (map :name (get-in help [:arg-spec :subcommands])))))
-        (is (= :mutating (:hook-class op)))
+               (set (map :name (get-in help [:node :children])))))
+        (is (= {"about" :read "aspects" :read "template" :read "plan" :read
+                "start" :mutating "verify" :mutating "next" :read
+                "advance" :mutating "stamp" :mutating}
+               (update-vals subcommands :hook-class)))
+        (is (every? #(= :standard (:deadline-class %)) (vals subcommands)))
         (is (= ["dresser/flavour" "dresser/aspect" "dresser/version" "dresser/root"
                 "dresser/gate-id"]
                (:keys declaration)))
@@ -925,10 +933,10 @@
             (is (some? (spool/attr-get failed-gate :gate/error)))
             (is (contains? (violation-types refusal "init-header") :gate-error))
             (fixtures/write-step-files! root "Write layered workspace")
-            ;; The executor's blank re-arm idiom, not a delete: dresser reads
-            ;; gate/error exactly as the executors write it.
-            (weaver/update runtime (:id failed-gate)
-                           {:attributes {"gate/error" ""}})
+            ;; The executor re-arms on gate/error absence, so the clear is a
+            ;; nil-patch removal, not a blank overwrite.
+            (weaver/update! runtime (:id failed-gate)
+                            {:attributes {"gate/error" nil}})
             (is (= :done (:reason (fixtures/drive-skein-dir! runtime root))))
             (is (= :current (:plan (dresser/stamp! aspect-key root))))))))))
 
