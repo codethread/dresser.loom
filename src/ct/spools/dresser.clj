@@ -300,7 +300,8 @@
                         :actual (attr gate :shell/exit-code)
                         :expected 0})
 
-                 ;; A blank stamp is the executor's clearing idiom, not a failure.
+                 ;; Executors clear by removing the key; a legacy blank left by
+                 ;; a hand-clear still reads as cleared, not as a failure.
                  (specs/non-blank-string? (attr gate :gate/error))
                  (conj {:violation :gate-error
                         :gate gate-id

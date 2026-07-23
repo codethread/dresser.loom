@@ -114,7 +114,7 @@ tree status but does not change the receipt.
 
 `stamp` accepts an aspect only when the latest setup molecule contains its
 complete expected gate set and each gate is closed by `shell`, has exit code
-zero, and carries no non-blank `gate/error`. Missing, unexpected, duplicate,
+zero, and carries no `gate/error`. Missing, unexpected, duplicate,
 force-closed, failed, or historical gates are rejected. On acceptance, stamp
 atomically merges the aspect version, current release, release fingerprint, and
 application date into the receipt.
@@ -144,12 +144,12 @@ the target or gate request. Clear the durable error to request a deterministic
 rerun:
 
 ```sh
-strand update <gate-id> --attr gate/error=
+strand update <gate-id> --attributes '{"gate/error":null}'
 ```
 
-A blank `gate/error` is the executors' clearing idiom, so dresser reads the key
-exactly as they write it: blank is cleared, and only a non-blank stamp blocks
-`stamp`. Deleting the attribute outright clears it too.
+Removal is the executors' clearing idiom, so dresser reads the key exactly as
+they write it: an absent `gate/error` is cleared, and only a non-blank stamp
+blocks `stamp`.
 
 The shell executor scans the now-ready, unclaimed gate again. When it exits
 zero, continue until the run is done, then call `stamp`. A crash leaving
