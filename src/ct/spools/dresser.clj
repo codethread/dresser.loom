@@ -215,9 +215,18 @@
                      (assoc opts :by "dresser")))
 
 (defn- keywordize-input [input]
-  (into {}
-        (map (fn [[key value]] [(keyword (name key)) value]))
-        (or input {})))
+  (let [input (or input {})
+        invalid-keys (vec (remove #(or (keyword? %)
+                                       (string? %)
+                                       (symbol? %))
+                                  (keys input)))]
+    (when (seq invalid-keys)
+      (spool/fail! "Dresser advance input keys must be keywords, strings, or symbols"
+                   {:invalid-keys invalid-keys
+                    :allowed-key-types #{:keyword :string :symbol}}))
+    (into {}
+          (map (fn [[key value]] [(keyword (name key)) value]))
+          input)))
 
 (defn- attr [strand key]
   (spool/attr-get strand key))

@@ -88,6 +88,15 @@
     (is (ifn? (:workflow success)))
     (is (ifn? (:shell success)))))
 
+(deftest advance-input-keys-fail-with-an-actionable-error
+  (let [keywordize-input (ns-resolve 'ct.spools.dresser 'keywordize-input)
+        exception (thrown-exception #(keywordize-input {42 "invalid"}))]
+    (is (= "Dresser advance input keys must be keywords, strings, or symbols"
+           (ex-message exception)))
+    (is (= [42] (:invalid-keys (ex-data exception))))
+    (is (= #{:keyword :string :symbol}
+           (:allowed-key-types (ex-data exception))))))
+
 (deftest dresser-prerequisite-resolution-preserves-unexpected-failures
   (let [check (ns-resolve 'ct.spools.dresser 'check-prereqs!)
         root-cause (IllegalStateException. "resolution exploded")
