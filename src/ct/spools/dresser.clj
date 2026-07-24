@@ -7,7 +7,7 @@
             [skein.api.graph.alpha :as graph]
             [skein.api.spool.alpha :as spool]
             [skein.api.vocab.alpha :as vocab]
-            [skein.api.weaver.alpha :as weaver]
+            [skein.api.weaver.internal.op-entry :as op-entry]
             [ct.spools.dresser.aspects :as aspects]
             [ct.spools.dresser.receipt :as receipt]
             [ct.spools.dresser.specs :as specs]
@@ -15,28 +15,11 @@
             [ct.spools.dresser.templates :as templates]
             [ct.spools.dresser.workflows :as dresser-workflows]
             [skein.spools.workflow :as workflow])
-  (:import (java.io FileNotFoundException)
-           (java.time LocalDate)))
+  (:import (java.time LocalDate)))
 
 (def ^:dynamic *current-date*
   "Injectable date used by receipt stamping; nil selects the system date."
   nil)
-
-(defn- check-prereqs!
-  "Fail loudly unless the workflow lifecycle resolves and shell is installed."
-  [resolve-fn executors]
-  (let [lifecycle (try
-                    (resolve-fn 'skein.spools.workflow/start!)
-                    (catch FileNotFoundException _ nil))]
-    (when-not lifecycle
-      (spool/fail! "Dresser requires the workflow spool on the classpath"
-                   {:prerequisite :workflow
-                    :symbol 'skein.spools.workflow/start!}))
-    (when-not (contains? executors :shell)
-      (spool/fail! "Dresser requires the shell workflow executor"
-                   {:prerequisite :shell
-                    :executors (set (keys executors))}))
-    {:workflow lifecycle :shell (:shell executors)}))
 
 (defn- current-fingerprint []
   (get aspects/releases aspects/release-version))
@@ -437,30 +420,83 @@
                    {:subcommand subcommand
                     :allowed (vec (sort allowed))}))))
 
-(defn- op-registered? [runtime op-name]
-  (boolean (some #(= (clojure.core/name op-name) (:name %)) (weaver/ops runtime))))
+(def ^:private dresser-vocab
+  "The `dresser/*` attribute-namespace declaration reconcile seeds."
+  {:kind :attr-namespace
+   :name "dresser"
+   :owner :skein/spools-dresser
+   :keys ["dresser/flavour" "dresser/aspect" "dresser/version" "dresser/root"
+          "dresser/gate-id"]
+   :doc "Dresser target and aspect identity attributes on workflow roots and steps."})
 
-(defn- register-or-replace-op! [runtime]
-  (let [metadata {:doc "Inspect and converge repository conventions."
-                  :arg-spec dresser-arg-spec}]
-    (if (op-registered? runtime 'dresser)
-      (weaver/replace-op! runtime 'dresser metadata 'ct.spools.dresser/dresser-op)
-      (weaver/register-op! runtime 'dresser metadata 'ct.spools.dresser/dresser-op))))
+(def ^:private dresser-op-options
+  "Registration metadata for the `dresser` op's contribution entry."
+  {:doc "Inspect and converge repository conventions."
+   :arg-spec dresser-arg-spec})
 
-(defn install!
-  "Install dresser vocabulary, workflows, and declared-subcommand op."
+(defn contribute
+  "Publish dresser's complete declarative contribution.
+
+  Two owner-complete partitions: the `dresser` CLI op, assembled into the
+  canonical op-entry shape exactly as `register-op!` would, and the workflow
+  constructors as entries in the workflow spool's registered constructor kind
+  (DELTA-OlrDrt-001.CC4). The module refresh kernel owns replacement and
+  deletion, so a refresh that omits this module retracts the op and every
+  constructor by omission. Constructors are symbols, not resolved Vars, which
+  preserves live re-pointing: an in-flight run resolves the current symbol at
+  its next transition while poured molecules retain their materialized
+  history. Callers order the module `:after` their world's workflow module
+  key so the constructor kind is declared before this contribution publishes."
+  [_ctx]
+  {workflow/constructor-kind dresser-workflows/workflow-definitions
+   :ops {"dresser" (op-entry/assemble 'dresser dresser-op-options
+                                      'ct.spools.dresser/dresser-op)}})
+
+(defn- require-shell-executor!
+  "Fail loudly unless a `:shell` workflow executor is registered.
+
+  Module dependencies cannot express this prerequisite: the executor is
+  contributed by a separate module whose consumer-chosen key this spool
+  cannot name in an `:after` edge, and the kernel's undeclared-kind refusal
+  never fires for an entry nobody contributes. Without it every dresser gate
+  would sit unhandled, so activation refuses instead."
   []
-  (check-prereqs! requiring-resolve (workflow/executors))
-  (let [runtime (current/runtime)]
-    {:installed true
-     :namespace 'ct.spools.dresser
-     :vocab (vocab/declare! runtime
-                            {:kind :attr-namespace
-                             :name "dresser"
-                             :owner :skein/spools-dresser
-                             :keys ["dresser/flavour" "dresser/aspect"
-                                    "dresser/version" "dresser/root"
-                                    "dresser/gate-id"]
-                             :doc "Dresser target and aspect identity attributes on workflow roots and steps."})
-     :workflows (dresser-workflows/register-workflows!)
-     :op (register-or-replace-op! runtime)}))
+  (let [executors (workflow/executors)]
+    (when-not (contains? executors :shell)
+      (spool/fail! "Dresser requires the shell workflow executor"
+                   {:prerequisite :shell
+                    :executors (set (keys executors))}))))
+
+(defn reconcile
+  "Reconcile dresser's non-declarative resources per the module contract.
+
+  An applied contribution asserts the shell-executor prerequisite and seeds
+  the `dresser/*` vocabulary (a domain registration effect, reconcile-owned
+  like the workflow spool's own vocabulary). The removal branch is
+  deliberately effect-free: vocabulary declarations are process-lifetime
+  seeds with no retraction API (SPEC-004.C46b), and the op and constructors
+  are already gone by kernel omission. Any other status is a direct-call
+  error and fails loudly."
+  [{:keys [runtime] :as ctx}]
+  (let [status (get-in ctx [:module/contribution :status])]
+    (case status
+      :applied (do (require-shell-executor!)
+                   (vocab/declare! runtime dresser-vocab)
+                   {:reconciled :applied})
+      :removed {:reconciled :removed}
+      (spool/fail! "Unsupported module contribution status"
+                   {:status status
+                    :allowed #{:applied :removed}
+                    :module/key (:module/key ctx)
+                    :reconciler 'ct.spools.dresser/reconcile}))))
+
+(def module
+  "Base module declaration datum for the dresser spool (ADR-003.P7).
+
+  The authored `:ns`/`:contribute`/`:reconcile` triple every consumer starts
+  from: a consuming world assocs its `:spools` guards and an `:after` edge on
+  its workflow module's key onto it, and bare-test fixtures assoc
+  `:load :image`. Every variant is `runtime/module!` input."
+  {:ns 'ct.spools.dresser
+   :contribute 'ct.spools.dresser/contribute
+   :reconcile 'ct.spools.dresser/reconcile})

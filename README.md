@@ -57,38 +57,43 @@ For local dresser development, add a gitignored `spools.local.edn` overlay:
 
 ## Activation
 
-Sync approved roots, then activate the workflow engine, the classpath shell
-executor, and dresser in that order:
+Declare the workflow engine, the classpath shell executor, and dresser as
+modules in the workspace's `init.clj`, ordered by `:after` edges. Each
+declaration mirrors the spool's exported base datum (`skein.spools.workflow/module`,
+`skein.spools.executors.shell/module`, `ct.spools.dresser/module`) with the
+workspace's `:spools` guards added; startup config spells the maps out
+literally because it runs before spool sources are loadable:
 
 ```clojure
-(require '[skein.api.current.alpha :as current]
-         '[skein.api.runtime.alpha :as runtime])
+(runtime/module! runtime :workflow
+                 {:ns 'skein.spools.workflow
+                  :spools ['skein.spools/workflow]
+                  :contribute 'skein.spools.workflow/contribute
+                  :reconcile 'skein.spools.workflow/reconcile
+                  :required? true})
 
-(def runtime (current/runtime))
+(runtime/module! runtime :shell-executor
+                 {:ns 'skein.spools.executors.shell
+                  :spools ['skein.spools/workflow]
+                  :after [:workflow]
+                  :contribute 'skein.spools.executors.shell/contribute
+                  :reconcile 'skein.spools.executors.shell/reconcile
+                  :required? true})
 
-(runtime/sync! runtime)
-
-(runtime/use! runtime
-  :workflow
-  {:ns 'skein.spools.workflow
-   :spools ['skein.spools/workflow]
-   :required? true})
-
-(runtime/use! runtime
-  :shell-executor
-  {:ns 'skein.spools.executors.shell
-   :call 'skein.spools.executors.shell/install!
-   :after [:workflow]
-   :required? true})
-
-(runtime/use! runtime
-  :dresser
-  {:ns 'ct.spools.dresser
-   :spools ['codethread/dresser]
-   :call 'ct.spools.dresser/install!
-   :after [:workflow :shell-executor]
-   :required? true})
+(runtime/module! runtime :dresser
+                 {:ns 'ct.spools.dresser
+                  :spools ['codethread/dresser]
+                  :after [:workflow :shell-executor]
+                  :contribute 'ct.spools.dresser/contribute
+                  :reconcile 'ct.spools.dresser/reconcile
+                  :required? true})
 ```
+
+Dresser's contribution publishes its workflow constructors into the workflow
+spool's constructor kind and its `dresser` op; its reconcile seeds the
+`dresser/*` vocabulary and refuses activation when no `:shell` executor is
+registered. A refresh that omits the dresser module retracts the op and every
+constructor by omission.
 
 The shell executor is present through the approved workflow root; omitting a
 separate `:spools` guard on its activation is intentional.

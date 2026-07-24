@@ -121,7 +121,8 @@ application date into the receipt.
 
 ## Attributes
 
-The dresser namespace is declared during `install!`.
+The dresser attribute namespace is declared by the module's reconcile on an
+applied contribution.
 
 | Attribute | Present on | Meaning |
 |---|---|---|

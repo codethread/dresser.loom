@@ -212,7 +212,9 @@
                         (:reason params)))})))
 
 (def workflow-definitions
-  "Stable registered workflow names and their resolvable constructors."
+  "Stable workflow names and their resolvable constructors, published as
+  dresser's owner partition of the workflow spool's constructor kind by
+  `ct.spools.dresser/contribute`."
   {:dresser/spool-repo 'ct.spools.dresser.workflows/spool-repo-workflow
    :dresser/skein-dir 'ct.spools.dresser.workflows/skein-dir-workflow
    :dresser/abort 'ct.spools.dresser.workflows/abort-workflow
@@ -230,14 +232,6 @@
    'ct.spools.dresser.workflows/skein-dir-quality-workflow
    :dresser/skein-dir.agent-docs
    'ct.spools.dresser.workflows/skein-dir-agent-docs-workflow})
-
-(defn register-workflows!
-  "Register all dresser umbrella, abort, and aspect workflows."
-  []
-  (into {}
-        (map (fn [[name constructor]]
-               [name (workflow/register-workflow! name constructor)]))
-        workflow-definitions))
 
 (defn- topology-mode [aspect-key verify-only]
   (let [params {:root "<root>" :verify-only verify-only}

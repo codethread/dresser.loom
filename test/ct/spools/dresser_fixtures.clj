@@ -39,9 +39,35 @@
       (isTerminated [] @shutdown?)
       (awaitTermination [_timeout _unit] true))))
 
-(defn install-serial-shell!
-  "Install the real shell executor with deterministic inline worker completion."
-  []
+(defn activate-module!
+  "Activate a spool module on a bare test runtime from the JVM image.
+
+  Assocs `:load :image` (plus an optional `:after` edge) onto the spool's
+  exported base declaration and declares it under `key` via `runtime/module!`
+  (ADR-003.P7: tests pass the base datum; production carries `:spools` guards
+  instead). Throws with the full refresh result unless the module's outcome is
+  applied or unchanged, so a fixture failure names the refusal instead of
+  cascading into unrelated assertions. Returns the refresh result."
+  [rt key base-decl & {:keys [after]}]
+  (let [result (runtime/module! rt key (cond-> (assoc base-decl :load :image)
+                                         after (assoc :after after)))
+        status (get-in result [:modules key :status])]
+    (when-not (contains? #{:applied :unchanged} status)
+      (throw (ex-info "Spool module activation failed"
+                      {:module/key key :module/status status :result result})))
+    result))
+
+(defn activate-workflow!
+  "Activate the workflow spool module on a bare test runtime."
+  [rt]
+  (activate-module! rt :workflow workflow/module))
+
+(defn activate-serial-shell!
+  "Activate the real shell executor module with deterministic inline workers.
+
+  The redef window covers the module refresh, whose reconcile materializes
+  the runtime-owned worker pool through the redefined state builder."
+  [rt]
   (let [workers (direct-executor)
         new-state (fn []
                     {:scan-monitor (Object.)
@@ -49,7 +75,12 @@
                      :close-fn #(.shutdown workers)})]
     (with-redefs-fn {(ns-resolve 'skein.spools.executors.shell 'new-state)
                      new-state}
-      shell-executor/install!)))
+      #(activate-module! rt :shell shell-executor/module :after [:workflow]))))
+
+(defn activate-dresser!
+  "Activate the dresser module ordered after the workflow module."
+  [rt]
+  (activate-module! rt :dresser dresser/module :after [:workflow]))
 
 (defn with-dresser-runtime
   "Run f in a disposable weaver world with dresser and either real or inert shell.
@@ -61,13 +92,14 @@
    (t/with-weaver-world [ctx {:storage :sqlite-memory}]
      (weaver-runtime/with-runtime-binding
        (:runtime ctx)
-       #(do
+       #(let [rt (:runtime ctx)]
+          (activate-workflow! rt)
           (if real-shell?
-            (install-serial-shell!)
+            (activate-serial-shell! rt)
             (workflow/register-executor! :shell (constantly nil)))
-          (dresser/install!)
+          (activate-dresser! rt)
           (binding [dresser/*current-date* (LocalDate/of 2026 7 14)]
-            (f (:runtime ctx) (:config-dir ctx))))))))
+            (f rt (:config-dir ctx))))))))
 
 (defn temp-directory ^Path []
   (Files/createTempDirectory "dresser-e2e-" (make-array FileAttribute 0)))

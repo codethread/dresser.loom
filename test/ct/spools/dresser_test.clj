@@ -7,6 +7,7 @@
             [clojure.java.shell :as sh]
             [clojure.string :as str]
             [clojure.test :refer [deftest is run-tests testing]]
+            [skein.api.runtime.alpha :as runtime]
             [skein.api.spool.alpha :as spool]
             [skein.api.vocab.alpha :as vocab]
             [skein.api.weaver.alpha :as weaver]
@@ -24,15 +25,21 @@
   (:import (java.nio.file Files Path)
            (java.nio.file.attribute FileAttribute)))
 
-(deftest dresser-namespace-loads
-  (is (ifn? dresser/install!)))
+(deftest dresser-exports-the-module-lifecycle-surface
+  (is (ifn? dresser/contribute))
+  (is (ifn? dresser/reconcile))
+  (is (= {:ns 'ct.spools.dresser
+          :contribute 'ct.spools.dresser/contribute
+          :reconcile 'ct.spools.dresser/reconcile}
+         dresser/module)))
 
 (defn- with-runtime [f]
   (t/with-weaver-world [ctx {:storage :sqlite-memory}]
     (weaver-runtime/with-runtime-binding
       (:runtime ctx)
       #(do
-         (fixtures/install-serial-shell!)
+         (fixtures/activate-workflow! (:runtime ctx))
+         (fixtures/activate-serial-shell! (:runtime ctx))
          (f (:runtime ctx) (:config-dir ctx))))))
 
 (def expected-template-names
@@ -76,18 +83,6 @@
     (catch Throwable exception
       exception)))
 
-(deftest dresser-prerequisites-are-checked-through-the-seam
-  (let [check (ns-resolve 'ct.spools.dresser 'check-prereqs!)
-        workflow-missing (thrown-data #(check (constantly nil) {:shell identity}))
-        shell-missing (thrown-data #(check (constantly identity) {}))
-        success (check (constantly identity) {:shell identity})]
-    (is (= :workflow (:prerequisite workflow-missing)))
-    (is (= 'skein.spools.workflow/start! (:symbol workflow-missing)))
-    (is (= :shell (:prerequisite shell-missing)))
-    (is (= #{} (:executors shell-missing)))
-    (is (ifn? (:workflow success)))
-    (is (ifn? (:shell success)))))
-
 (deftest advance-input-keys-fail-with-an-actionable-error
   (let [keywordize-input (ns-resolve 'ct.spools.dresser 'keywordize-input)
         exception (thrown-exception #(keywordize-input {42 "invalid"}))]
@@ -96,14 +91,6 @@
     (is (= [42] (:invalid-keys (ex-data exception))))
     (is (= #{:keyword :string :symbol}
            (:allowed-key-types (ex-data exception))))))
-
-(deftest dresser-prerequisite-resolution-preserves-unexpected-failures
-  (let [check (ns-resolve 'ct.spools.dresser 'check-prereqs!)
-        root-cause (IllegalStateException. "resolution exploded")
-        exception (thrown-exception #(check (fn [_] (throw root-cause))
-                                            {:shell identity}))]
-    (is (identical? root-cause exception))
-    (is (= "resolution exploded" (ex-message exception)))))
 
 (deftest v1-template-registry-is-complete
   (is (= expected-template-names (set (keys templates/templates)))))
@@ -380,12 +367,10 @@
     (is (= :pending (get classification "spool-repo/repo-skeleton")))
     (is (= :current (get classification "spool-repo/agent-docs")))))
 
-(deftest dresser-workflows-register-stable-names
-  (with-runtime
-    (fn [_ _]
-      (is (= (set (keys dresser-workflows/workflow-definitions))
-             (set (keys (dresser-workflows/register-workflows!)))))
-      (is (= 10 (count dresser-workflows/workflow-definitions))))))
+(deftest dresser-workflows-declare-stable-resolvable-names
+  (is (= 10 (count dresser-workflows/workflow-definitions)))
+  (doseq [[wf-name constructor] dresser-workflows/workflow-definitions]
+    (is (ifn? (requiring-resolve constructor)) (str wf-name))))
 
 (defn- temp-directory ^Path []
   (Files/createTempDirectory "dresser-test-" (make-array FileAttribute 0)))
@@ -583,19 +568,19 @@
       (throw (ex-info "git init failed" {:root (str root) :exit exit :stderr err})))
     root))
 
-(deftest install-is-idempotent-and-declares-the-complete-op-surface
+(deftest activation-is-idempotent-and-declares-the-complete-op-surface
   (with-runtime
     (fn [runtime _]
-      (let [first-install (dresser/install!)
-            second-install (dresser/install!)
+      (let [first-activation (fixtures/activate-dresser! runtime)
+            second-activation (fixtures/activate-dresser! runtime)
             op (weaver/resolve-op runtime 'dresser)
             subcommands (get-in op [:arg-spec :subcommands])
             help (weaver/op! runtime 'help ["dresser"])
             declaration (->> (vocab/declarations runtime {:kind :attr-namespace})
                              (filter #(= "dresser" (:name %)))
                              first)]
-        (is (true? (:installed first-install)))
-        (is (true? (:installed second-install)))
+        (is (= :applied (get-in first-activation [:modules :dresser :status])))
+        (is (= :unchanged (get-in second-activation [:modules :dresser :status])))
         (is (= #{"about" "aspects" "template" "plan" "start" "verify"
                  "next" "advance" "stamp"}
                (set (keys subcommands))))
@@ -613,10 +598,78 @@
         (is (= (set (keys dresser-workflows/workflow-definitions))
                (set (keys (workflow/workflows)))))))))
 
+(deftest contribute-publishes-owner-complete-partitions
+  (let [contribution (dresser/contribute {})
+        entry (get-in contribution [:ops "dresser"])]
+    (is (= #{workflow/constructor-kind :ops} (set (keys contribution))))
+    (is (= dresser-workflows/workflow-definitions
+           (get contribution workflow/constructor-kind)))
+    (is (= "dresser" (:name entry)))
+    (is (= 'ct.spools.dresser/dresser-op (:fn entry)))
+    (is (= 'ct.spools.dresser (:provenance entry)))
+    (is (= #{"about" "aspects" "template" "plan" "start" "verify"
+             "next" "advance" "stamp"}
+           (set (keys (get-in entry [:arg-spec :subcommands])))))))
+
+(defn- with-runtime-without-executor [f]
+  (t/with-weaver-world [ctx {:storage :sqlite-memory}]
+    (weaver-runtime/with-runtime-binding
+      (:runtime ctx)
+      #(do
+         (fixtures/activate-workflow! (:runtime ctx))
+         (f (:runtime ctx))))))
+
+(deftest reconcile-refuses-an-applied-contribution-without-a-shell-executor
+  (with-runtime-without-executor
+    (fn [rt]
+      (let [data (thrown-data
+                  #(dresser/reconcile {:runtime rt
+                                       :module/contribution {:status :applied}}))]
+        (is (= :shell (:prerequisite data)))
+        (is (set? (:executors data)))))))
+
+(deftest module-activation-fails-loudly-without-a-shell-executor
+  (with-runtime-without-executor
+    (fn [rt]
+      (let [data (thrown-data #(fixtures/activate-dresser! rt))]
+        (is (= :dresser (:module/key data)))))))
+
+(deftest reconcile-refuses-an-unsupported-contribution-status
+  (let [data (thrown-data
+              #(dresser/reconcile {:runtime nil
+                                   :module/key :dresser
+                                   :module/contribution {:status :bogus}}))]
+    (is (= :bogus (:status data)))
+    (is (= #{:applied :removed} (:allowed data)))
+    (is (= 'ct.spools.dresser/reconcile (:reconciler data)))))
+
+(deftest module-removal-by-omission-retracts-constructors-and-op
+  ;; The deletion-by-omission proof: a full refresh re-collects from startup
+  ;; files, where this imperative test declaration does not appear, so the
+  ;; kernel removes the module, runs reconcile's :removed branch, and retracts
+  ;; the op and every workflow constructor without dresser code participating.
+  (fixtures/with-temp-dir [parent]
+    (let [root (fixtures/git-init-root! parent "omission")]
+      (with-runtime-without-executor
+        (fn [runtime]
+          (workflow/register-executor! :shell (constantly nil))
+          (fixtures/activate-dresser! runtime)
+          (weaver/op! runtime 'dresser
+                      ["start" "skein-dir" (str root)
+                       "--aspects" "skein-dir/agent-docs"])
+          (is (= (set (keys dresser-workflows/workflow-definitions))
+                 (set (keys (workflow/workflows)))))
+          (let [result (runtime/refresh! runtime)]
+            (is (= :removed (get-in result [:modules :dresser :status]))))
+          (is (empty? (filter #(= "dresser" (namespace %))
+                              (keys (workflow/workflows)))))
+          (is (= 'dresser (:operation (thrown-data
+                                       #(weaver/resolve-op runtime 'dresser))))))))))
+
 (deftest read-only-ops-return-declared-shapes
   (with-runtime
     (fn [runtime _]
-      (dresser/install!)
+      (fixtures/activate-dresser! runtime)
       (let [about (weaver/op! runtime 'dresser ["about"])
             registry (weaver/op! runtime 'dresser ["aspects"])
             rendered (weaver/op! runtime 'dresser
@@ -637,7 +690,7 @@
     (let [root (git-init-root! parent "fresh")]
       (with-runtime
         (fn [runtime _]
-          (dresser/install!)
+          (fixtures/activate-dresser! runtime)
           (let [fresh (weaver/op! runtime 'dresser ["plan" (str root)])]
             (is (= (str (.toRealPath root (make-array java.nio.file.LinkOption 0)))
                    (:root fresh)))
@@ -713,6 +766,7 @@
     (weaver-runtime/with-runtime-binding
       (:runtime ctx)
       #(do
+         (fixtures/activate-workflow! (:runtime ctx))
          (workflow/register-executor! :shell (constantly nil))
          (f (:runtime ctx))))))
 
@@ -721,7 +775,7 @@
     (let [root (fixtures/git-init-root! parent "lifecycle")]
       (with-runtime-without-shell
         (fn [runtime]
-          (dresser/install!)
+          (fixtures/activate-dresser! runtime)
           (let [setup (weaver/op! runtime 'dresser
                                   ["start" "skein-dir" (str root)
                                    "--aspects" "skein-dir/agent-docs"])
@@ -880,7 +934,7 @@
       (let [before (fixtures/snapshot-outside-skein root)]
         (with-runtime
           (fn [runtime _]
-            (dresser/install!)
+            (fixtures/activate-dresser! runtime)
             (weaver/op! runtime 'dresser ["start" "skein-dir" (str root)])
             (let [state (fixtures/drive-skein-dir! runtime root)]
               (is (= :done (:reason state)) (pr-str state)))
@@ -909,7 +963,7 @@
           aspect-key "skein-dir/workspace"]
       (with-runtime
         (fn [runtime _]
-          (dresser/install!)
+          (fixtures/activate-dresser! runtime)
           (weaver/op! runtime 'dresser
                       ["start" "skein-dir" (str root)
                        "--aspects" aspect-key])
