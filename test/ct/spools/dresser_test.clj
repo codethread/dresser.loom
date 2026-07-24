@@ -145,10 +145,10 @@
 (deftest aspect-registry-is-valid
   (is (= (set (keys expected-aspect-ids)) (set (keys aspects/registry))))
   (is (= {"spool-repo/repo-skeleton" 3
-          "spool-repo/skein-workspace" 2
+          "spool-repo/skein-workspace" 3
           "spool-repo/agent-docs" 1
           "spool-repo/quality" 2
-          "skein-dir/workspace" 2
+          "skein-dir/workspace" 3
           "skein-dir/quality" 2
           "skein-dir/agent-docs" 1}
          (into {} (map (fn [[key entry]] [key (:version entry)])) aspects/registry)))

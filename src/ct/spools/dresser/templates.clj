@@ -7,7 +7,7 @@
   "{\"configFormat\":\"alpha\"}\n")
 
 (def skein-spools-edn
-  "{:spools {}}\n")
+  "{:spools {skein.spools/batteries {:skein/source-root \"spools/batteries\"}}}\n")
 
 (def skein-init-minimal
   (str "(require '[skein.api.current.alpha :as current]\n"
@@ -15,10 +15,13 @@
        "\n"
        "(def runtime (current/runtime))\n"
        "\n"
-       "(runtime/sync! runtime)\n"
-       "(runtime/use! runtime :skein/spools-batteries\n"
-       "              {:ns 'skein.spools.batteries\n"
-       "               :call 'skein.spools.batteries/activate!})\n"))
+       ";; Batteries is approved as a shipped source-root spool; the :spools guard\n"
+       ";; keeps source loading behind that visible spools.edn approval.\n"
+       "(runtime/module! runtime :skein/spools-batteries\n"
+       "                 {:ns 'skein.spools.batteries\n"
+       "                  :spools ['skein.spools/batteries]\n"
+       "                  :contribute 'skein.spools.batteries/contribute\n"
+       "                  :reconcile 'skein.spools.batteries/reconcile})\n"))
 
 (def skein-init-layered
   (str ";; Startup entrypoint for this repo's coordination world. Keep one file per concern:\n"
