@@ -65,6 +65,7 @@
    "spool-repo/cljfmt.edn"
    "spool-repo/splint.edn"
    "spool-repo/makefile"
+   "spool-repo/quality.mk"
    "spool-repo/quality-aliases.edn"
    "skein-dir/deps.edn"
    "skein-dir/makefile"

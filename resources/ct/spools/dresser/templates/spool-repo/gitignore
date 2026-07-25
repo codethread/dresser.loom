@@ -9,6 +9,9 @@ pom.xml.asc
 .nrepl-port
 .rebel_readline_history
 
+# MkDocs build writes this directory.
+site/
+
 # Editors / OS
 .calva/
 *.iml

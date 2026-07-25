@@ -9,7 +9,7 @@
 
 (def release-version
   "Monotonic release for the complete aspect registry."
-  5)
+  6)
 
 (def releases
   "Published release fingerprints. Historical entries are immutable."
@@ -17,7 +17,8 @@
    2 "13bc922fb126113db697af8bf825c83fe0908a92536e7e7d9c983f6d39d282b3"
    3 "3241b836a15e41a30428db2d09df9b24a4570abb1f273c50f898dc2b19ca1f89"
    4 "8a0623a366b78d71a5dce9304a82904b38ad80f9454a54550d4c385bfb39f036"
-   5 "c65d4c1710f6ec952da6afb57bda81e0b8ae0ee663c33a33ef7954963f800516"})
+   5 "c65d4c1710f6ec952da6afb57bda81e0b8ae0ee663c33a33ef7954963f800516"
+   6 "f6b97e7e47694005d6b7db3fe6fd61282b5509e9b9fe3b52d8db4f002c0e7df5"})
 
 (def ^:private conflict-discipline
   "Honor the recorded conflict decisions for every owned file: keep preserves the customization, merge reconciles it with the canonical template, and replace uses the canonical template.")
@@ -31,7 +32,7 @@
 (def registry
   "The seven versioned dresser aspects, keyed by <flavour>/<aspect>."
   {"spool-repo/repo-skeleton"
-   {:version 3
+   {:version 4
     :deps []
     :owned ["deps.edn"
             "src/ct/spools/<name>.clj"
@@ -87,16 +88,16 @@
              :timeout-secs 30}]}
 
    "spool-repo/quality"
-   {:version 2
+   {:version 3
     :deps ["spool-repo/repo-skeleton"]
-    :owned [".cljfmt.edn" ".splint.edn" "deps.edn" "Makefile"]
-    :inspect "Compare the quality configuration, deps.edn aliases, and Makefile with the canonical templates, record findings, and record a keep/merge/replace decision for each conflict."
+    :owned [".cljfmt.edn" ".splint.edn" "deps.edn" "Makefile" "make/quality.mk"]
+    :inspect "Compare the quality configuration, deps.edn aliases, Makefile include line, and make/quality.mk with the canonical templates, record findings, and record a keep/merge/replace decision for each conflict."
     :setup [(setup :write-quality-config "Write quality config"
                    "Converge .cljfmt.edn, .splint.edn, and deps.edn quality aliases using templates spool-repo/cljfmt.edn, spool-repo/splint.edn, and spool-repo/quality-aliases.edn."
                    ["spool-repo/cljfmt.edn" "spool-repo/splint.edn" "spool-repo/quality-aliases.edn"])
-            (setup :write-makefile "Write Makefile"
-                   "Converge Makefile using template spool-repo/makefile."
-                   ["spool-repo/makefile"])]
+            (setup :write-makefiles "Write Makefile fragments"
+                   "Converge the Makefile fragment include stub and make/quality.mk using templates spool-repo/makefile and spool-repo/quality.mk."
+                   ["spool-repo/makefile" "spool-repo/quality.mk"])]
     :gates [{:id :fmt-check
              :title "Check formatting"
              :argv ["make" "fmt-check"]

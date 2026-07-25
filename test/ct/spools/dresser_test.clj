@@ -59,6 +59,7 @@
     "spool-repo/cljfmt.edn"
     "spool-repo/splint.edn"
     "spool-repo/makefile"
+    "spool-repo/quality.mk"
     "spool-repo/quality-aliases.edn"
     "skein-dir/deps.edn"
     "skein-dir/makefile"
@@ -127,12 +128,13 @@
    "spool-repo/deps.edn" "4ada3c3b4c9456dab25b3c3ca1c367635bd5204c418076897d59b0cfd79a9d5e"
    "spool-repo/src-ns.clj" "62e3d453dba6de042b886c1e569be9ca92051149e1fec5f697943a519e0ac86b"
    "spool-repo/test-main.clj" "17f97f5682347a75a725f4f82e72b472c43cf8a99820e60f1f11015d7839a6d6"
-   "spool-repo/gitignore" "c03bd0082b0b8f10613d0f5bcce167d8fe597657cb59f6f083bdc6edabe8c83d"
+   "spool-repo/gitignore" "056f5cfa3c8446008026c3dac0e8d36c4dc5dae569d911447a611dd3b277cafa"
    "spool-repo/readme" "dd70fc146737314982fcf295476c20ba6b84f0c44d975208365612c4d0063a07"
    "spool-repo/agents.md" "16a7c20effaca2ce175a2c35aaabba9a404614fcfc7a3dc78682595441452d19"
    "spool-repo/cljfmt.edn" "ca9c9d6d0341cbe6cbad764ac82ac0ad306f925f145c490cfb83e2e06ef2a9c0"
    "spool-repo/splint.edn" "60598258904b6de7290b043082941f56aa25595d0cde94a93e65a3dc29be8e79"
-   "spool-repo/makefile" "23277f69afd856e58af1bc9d8710ba396b0b1304c90134cc1a4252c2f18800e1"
+   "spool-repo/makefile" "811b289b4f701599523183f7c53df8f30184c4419483c1b17856bdbb3756b97e"
+   "spool-repo/quality.mk" "23277f69afd856e58af1bc9d8710ba396b0b1304c90134cc1a4252c2f18800e1"
    "spool-repo/quality-aliases.edn" "0f6a74de4c653b713cd54095ce165b26e22583b21dc8c67ae16467efcb329781"
    "skein-dir/deps.edn" "510249ea4b5005a42495aab90264e30f526f958e2ad07b02055ae230f228e5a9"
    "skein-dir/makefile" "913ec67cf6b6b1cd100bbf75abb812ce05087afbe9bc6f16298dd18303dd9418"
@@ -185,7 +187,7 @@
    "spool-repo/agent-docs"
    {:setup [:write-agents-md] :gates [:agents-md]}
    "spool-repo/quality"
-   {:setup [:write-quality-config :write-makefile] :gates [:fmt-check :lint]}
+   {:setup [:write-quality-config :write-makefiles] :gates [:fmt-check :lint]}
    "skein-dir/workspace"
    {:setup [:write-workspace] :gates [:workspace-files :init-header]}
    "skein-dir/quality"
@@ -195,10 +197,10 @@
 
 (deftest aspect-registry-is-valid
   (is (= (set (keys expected-aspect-ids)) (set (keys aspects/registry))))
-  (is (= {"spool-repo/repo-skeleton" 3
+  (is (= {"spool-repo/repo-skeleton" 4
           "spool-repo/skein-workspace" 3
           "spool-repo/agent-docs" 1
-          "spool-repo/quality" 2
+          "spool-repo/quality" 3
           "skein-dir/workspace" 3
           "skein-dir/quality" 2
           "skein-dir/agent-docs" 1}

@@ -1,14 +1,4 @@
-.PHONY: fmt fmt-check lint test
-
-fmt:
-	clojure -M:format/fix
-
-fmt-check:
-	clojure -M:format
-
-lint:
-	clojure -M:lint/clj-kondo
-	clojure -M:lint/splint
-
-test:
-	clojure -M:test
+# Generic targets live in one fragment per concern (quality, docs) so each can be
+# owned and updated independently of this repo-specific file. Leading dash: a
+# checkout missing a fragment still builds repo-specific targets.
+-include make/*.mk

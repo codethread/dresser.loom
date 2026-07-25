@@ -192,8 +192,11 @@
         (write-template! root ".splint.edn" "spool-repo/splint.edn")
         (merge-quality-aliases! root))
 
-      "Write Makefile"
-      (write-template! root "Makefile" "spool-repo/makefile")
+      "Write Makefile fragments"
+      (doseq [[relative template-key]
+              [["Makefile" "spool-repo/makefile"]
+               ["make/quality.mk" "spool-repo/quality.mk"]]]
+        (write-template! root relative template-key))
 
       nil)))
 
@@ -207,7 +210,7 @@
                  "Write Skein workspace"
                  "Write AGENTS.md"
                  "Write quality config"
-                 "Write Makefile"]]
+                 "Write Makefile fragments"]]
     (write-spool-repo-step-files! root title))
   root)
 
