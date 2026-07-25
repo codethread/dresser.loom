@@ -1,0 +1,19 @@
+;; Startup entrypoint for this repo's coordination world. Keep one file per concern:
+;;   config.clj     — named queries and the CLI op surface
+;;   workflows.clj  — hand-authored workflows
+;;   harnesses.clj  — harness seats and routing policy
+;;   reviewers.clj  — reviewer rosters
+;; Add each concern's activation below in dependency order. Reload config changes instead
+;; of restarting the weaver, and smoke-test them in a disposable world first.
+(require '[skein.api.current.alpha :as current]
+         '[skein.api.runtime.alpha :as runtime])
+
+(def runtime (current/runtime))
+
+;; Batteries is approved as a shipped source-root spool; the :spools guard
+;; keeps source loading behind that visible spools.edn approval.
+(runtime/module! runtime :skein/spools-batteries
+                 {:ns 'skein.spools.batteries
+                  :spools ['skein.spools/batteries]
+                  :contribute 'skein.spools.batteries/contribute
+                  :reconcile 'skein.spools.batteries/reconcile})

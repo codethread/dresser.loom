@@ -1,0 +1,2 @@
+(ns ct.spools.<name>
+  "Shared spool implementation.")

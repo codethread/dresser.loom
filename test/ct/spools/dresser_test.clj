@@ -23,8 +23,10 @@
             [ct.spools.dresser.workflows :as dresser-workflows]
             [skein.spools.workflow :as workflow]
             [skein.test.alpha :as t])
-  (:import (java.nio.file Files Path)
-           (java.nio.file.attribute FileAttribute)))
+  (:import (java.nio.charset StandardCharsets)
+           (java.nio.file Files Path)
+           (java.nio.file.attribute FileAttribute)
+           (java.security MessageDigest)))
 
 (deftest dresser-exports-the-spool-lifecycle-surface
   (is (ifn? dresser/contribute))
@@ -108,6 +110,55 @@
   (is (= "{\"configFormat\":\"alpha\"}\n"
          (templates/template "skein/config.json")))
   (is (str/includes? (templates/template "skein/gitignore") ".cpcache/\n")))
+
+(def expected-template-hashes
+  "SHA-256 of every template's canonical rendering, recorded before the templates
+  moved out of Clojure string literals into `resources/`.
+
+  aspects/material-data hashes these exact renderings, so a single changed byte
+  here changes every release fingerprint derived from source and severs release
+  lineage from its ground truth. Re-record a hash only alongside a deliberate
+  aspect version and release-version bump."
+  {"skein/config.json" "1f1d316f79607c6e45befa3bce78dfc0cf9b9736a25af794850ade05d70b8008"
+   "skein/spools.edn" "2f87c8986925cdba240f5d31ecb05673a5fd04c44df0420677f301f3a5e4d7c9"
+   "skein/init-minimal.clj" "671fb527ce599b45496db6be98cc0dda20c641ab54b24c047c1114800d3a1afd"
+   "skein/init-layered.clj" "3415dbbcf8f1fffae148a46dbaec5d5ef760f85ec8168f545d04cc470f2d883d"
+   "skein/gitignore" "d8d19488fe52e731338acc28e1d719a7b23c170755450d813c42c245e1931f66"
+   "spool-repo/deps.edn" "4ada3c3b4c9456dab25b3c3ca1c367635bd5204c418076897d59b0cfd79a9d5e"
+   "spool-repo/src-ns.clj" "62e3d453dba6de042b886c1e569be9ca92051149e1fec5f697943a519e0ac86b"
+   "spool-repo/test-main.clj" "17f97f5682347a75a725f4f82e72b472c43cf8a99820e60f1f11015d7839a6d6"
+   "spool-repo/gitignore" "c03bd0082b0b8f10613d0f5bcce167d8fe597657cb59f6f083bdc6edabe8c83d"
+   "spool-repo/readme" "dd70fc146737314982fcf295476c20ba6b84f0c44d975208365612c4d0063a07"
+   "spool-repo/agents.md" "16a7c20effaca2ce175a2c35aaabba9a404614fcfc7a3dc78682595441452d19"
+   "spool-repo/cljfmt.edn" "ca9c9d6d0341cbe6cbad764ac82ac0ad306f925f145c490cfb83e2e06ef2a9c0"
+   "spool-repo/splint.edn" "60598258904b6de7290b043082941f56aa25595d0cde94a93e65a3dc29be8e79"
+   "spool-repo/makefile" "23277f69afd856e58af1bc9d8710ba396b0b1304c90134cc1a4252c2f18800e1"
+   "spool-repo/quality-aliases.edn" "0f6a74de4c653b713cd54095ce165b26e22583b21dc8c67ae16467efcb329781"
+   "skein-dir/deps.edn" "510249ea4b5005a42495aab90264e30f526f958e2ad07b02055ae230f228e5a9"
+   "skein-dir/makefile" "913ec67cf6b6b1cd100bbf75abb812ce05087afbe9bc6f16298dd18303dd9418"
+   "skein-dir/agents.md" "db629e70a4a7ef1c8dfb1767ce0e4bf9ef1d98f54c164cdc8175aa0c525b1fa4"
+   "skein-dir/claude.md" "5a9c71bcb5518b581040eaf3a2b5d1270abdbaf4f16bd4a8df6bc7092ea4b956"})
+
+(defn- sha-256-hex [^String content]
+  (let [digest (.digest (MessageDigest/getInstance "SHA-256")
+                        (.getBytes content StandardCharsets/UTF_8))]
+    (str/join (map #(format "%02x" (bit-and % 0xff)) digest))))
+
+(deftest template-contents-match-recorded-hashes
+  (is (= (set (keys expected-template-hashes)) (set (keys templates/templates)))
+      "record a hash for every template key")
+  (doseq [[template-name entry] templates/templates]
+    (testing template-name
+      ;; Rendered the way aspects/material-data renders them, so the hash guards
+      ;; exactly the bytes the release fingerprint covers.
+      (is (= (get expected-template-hashes template-name)
+             (sha-256-hex (if (fn? entry) (entry {:name "<name>"}) entry)))))))
+
+(deftest missing-template-resources-fail-loudly
+  (let [resource-content (ns-resolve 'ct.spools.dresser.templates 'resource-content)
+        missing (thrown-data #(resource-content "spool-repo/absent"))]
+    (is (= "spool-repo/absent" (:template missing)))
+    (is (= "ct/spools/dresser/templates/spool-repo/absent" (:resource missing)))))
 
 (deftest template-lookups-fail-with-data
   (let [unknown (thrown-data #(templates/template "not-a-template"))

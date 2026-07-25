@@ -1,0 +1,10 @@
+(ns ct.spools.<name>-test
+  "Tests for the ct.spools.<name> shared spool."
+  (:require [clojure.test :refer [run-tests]]
+            [ct.spools.<name>]))
+
+(defn -main
+  "Run the standalone <name> spool test suite."
+  [& _args]
+  (let [summary (run-tests 'ct.spools.<name>-test)]
+    (System/exit (if (pos? (+ (:fail summary) (:error summary))) 1 0))))

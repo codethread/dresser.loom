@@ -1,0 +1,15 @@
+# <name>.spool
+
+A shared Skein spool.
+
+## Prerequisites
+
+Approve this spool and each prerequisite explicitly in the operator workspace.
+
+## Dependency information
+
+Pin this repository in `.skein/spools.edn`; add all prerequisite coordinates beside it.
+
+## Activation
+
+After approval, sync the operator runtime and activate `ct.spools.<name>`.

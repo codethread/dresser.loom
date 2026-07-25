@@ -163,3 +163,11 @@ PATH=/opt/homebrew/opt/openjdk/bin:$PATH make fmt-check lint test
 
 The repository's `.skein/init.clj` remains the minimal batteries bootstrap.
 Dresser is not activated in its own workspace.
+
+Canonical template content lives under `resources/ct/spools/dresser/templates/`,
+one file per key in `ct.spools.dresser.templates/templates`, at the key's own
+path. A key ending in `.clj`/`.cljc` gets a `.template` extension on disk: skein
+loads every `.clj` under a spool root's `:paths` as a namespace source, so a
+template fragment named `.clj` would be evaluated as code on `reload-code!`.
+Template bytes are covered by `expected-template-hashes` in the test suite, which
+guards the release fingerprints derived from them.
