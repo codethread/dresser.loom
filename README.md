@@ -83,11 +83,19 @@ config therefore declares only the source and world policy:
                   :required? true})
 ```
 
-Dresser's contribution publishes its workflow constructors into the workflow
-spool's constructor kind and its `dresser` op; its reconcile seeds the
+Dresser's contribution publishes its static workflow definitions into the
+workflow spool's definition kind and its `dresser` op; its reconcile seeds the
 `dresser/*` vocabulary and refuses activation when no `:shell` executor is
 registered. A refresh that omits the dresser module retracts the op and every
-constructor by omission.
+definition by omission.
+
+The published names are `:dresser/<flavour>` for the two umbrellas (entrypoint
+`:start`), `:dresser/<flavour>.<aspect>` for each registry aspect (entrypoint
+`:call`, expanded inline by its umbrella), and `:dresser/abort` (entrypoint
+`:continue`, routed to by the conflict checkpoint). Each is a plain definition
+value a Var holds, so `strand workflow show <name>` answers what a name means
+without running anything. Publication refuses a partition whose definitions
+call or route to a name it does not contain.
 
 The shell executor is present through the approved workflow root; omitting a
 separate `:spools` guard on its activation is intentional.

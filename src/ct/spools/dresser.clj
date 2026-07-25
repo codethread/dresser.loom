@@ -142,6 +142,20 @@
       (aspects/close-under-deps flavour keys))
     (aspects/flavour-aspects flavour)))
 
+(defn- start-target
+  "Return what a start pours for `selected`: the registered flavour name, or the
+  narrower umbrella definition an aspect selection needs.
+
+  A static definition's `call` set is fixed where it is authored, so a subset of
+  a flavour is a definition the registry does not hold. Building one here and
+  pouring the value is trusted Clojure past the registry boundary (TEN-002); a
+  full-flavour run — every run without `--aspects` — stays a registered-name
+  start and records the definition name it resolved."
+  [flavour selected]
+  (if (= selected (aspects/flavour-aspects flavour))
+    (keyword "dresser" flavour)
+    (dresser-workflows/flavour-workflow flavour selected)))
+
 (defn- start-run! [flavour root verify-only selection]
   (spool/require-valid! ::specs/start-input
                         {:flavour flavour
@@ -152,9 +166,9 @@
   (let [root (target/resolve-root root)
         selected (selected-aspects flavour selection)
         run-id ((if verify-only target/verify-run-id target/run-id) flavour root)
-        params {:root root :verify-only verify-only :aspects selected}]
+        params {:root root :verify-only verify-only}]
     (workflow/start! run-id
-                     (keyword "dresser" flavour)
+                     (start-target flavour selected)
                      params
                      {:family "dresser"})))
 
@@ -436,17 +450,21 @@
   "Publish dresser's complete declarative contribution.
 
   Two owner-complete partitions: the `dresser` CLI op, assembled into the
-  canonical op-entry shape exactly as `register-op!` would, and the workflow
-  constructors as entries in the workflow spool's registered constructor kind
-  (DELTA-OlrDrt-001.CC4). The module refresh kernel owns replacement and
+  canonical op-entry shape exactly as `register-op!` would, and the static
+  workflow definitions as entries in the workflow spool's registered definition
+  kind (DELTA-OlrDrt-001.CC4). The module refresh kernel owns replacement and
   deletion, so a refresh that omits this module retracts the op and every
-  constructor by omission. Constructors are symbols, not resolved Vars, which
+  definition by omission. Definitions are symbols, not resolved Vars, which
   preserves live re-pointing: an in-flight run resolves the current symbol at
   its next transition while poured molecules retain their materialized
   history. Callers order the module `:after` their world's workflow module
-  key so the constructor kind is declared before this contribution publishes."
+  key so the definition kind is declared before this contribution publishes.
+
+  Dresser cannot author these with `defworkflow`: a module either collects
+  authoring forms or resolves a `:contribute` function, never both
+  (SPEC-004.C46), and dresser's op partition needs the function."
   [_ctx]
-  {workflow/constructor-kind dresser-workflows/workflow-definitions
+  {workflow/definition-kind dresser-workflows/workflow-definitions
    :ops {"dresser" (op-entry/assemble 'dresser dresser-op-options
                                       'ct.spools.dresser/dresser-op)}})
 
@@ -472,7 +490,7 @@
   the `dresser/*` vocabulary (a domain registration effect, reconcile-owned
   like the workflow spool's own vocabulary). The removal branch is
   deliberately effect-free: vocabulary declarations are process-lifetime
-  seeds with no retraction API (SPEC-004.C46b), and the op and constructors
+  seeds with no retraction API (SPEC-004.C46b), and the op and definitions
   are already gone by kernel omission. Any other status is a direct-call
   error and fails loudly."
   [{:keys [runtime] :as ctx}]

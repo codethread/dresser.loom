@@ -17,6 +17,7 @@
             [ct.spools.dresser-edges-test]
             [ct.spools.dresser-fixtures :as fixtures]
             [ct.spools.dresser.receipt :as receipt]
+            [ct.spools.dresser.specs :as specs]
             [ct.spools.dresser.target :as target]
             [ct.spools.dresser.templates :as templates]
             [ct.spools.dresser.workflows :as dresser-workflows]
@@ -200,8 +201,7 @@
 
 (defn- aspect-description [aspect-key verify-only]
   (let [params {:root "/tmp/x" :verify-only verify-only}]
-    (workflow/describe ((dresser-workflows/aspect-workflow aspect-key) params)
-                       params)))
+    (workflow/describe (dresser-workflows/aspect-workflow aspect-key) params)))
 
 (defn- expected-aspect-dependencies [entry]
   (let [setup-ids (mapv :id (:setup entry))
@@ -247,17 +247,19 @@
         choices (into {} (map (juxt :key identity)) (:choices checkpoint))]
     (is (= "conflict" (name (:id checkpoint))))
     (is (= #{"clean" "apply-plan" "abort"} (set (keys choices))))
-    (is (nil? (:input (choices "clean"))))
-    (is (= [{"key" "decisions"
-             "required" true
-             "description" "Summary of per-file keep/merge/replace decisions."}]
-           (:input (choices "apply-plan"))))
+    (is (nil? (:input-spec (choices "clean"))))
+    (is (= {"spec" "ct.spools.dresser.specs/conflict-decisions-input"
+            "doc" "Summary of per-file keep/merge/replace decisions."}
+           (:input-spec (choices "apply-plan"))))
     (is (= ":dresser/abort" (:next (choices "abort"))))
-    (is (= "reason" (get-in choices ["abort" :input 0 "key"])))
-    (is (true? (get-in choices ["abort" :input 0 "required"])))))
+    ;; The abort choice and the workflow it routes to answer to one spec, so a
+    ;; reason the checkpoint accepts is a reason the continuation can start on.
+    (is (= {"spec" "ct.spools.dresser.specs/abort-workflow-input"
+            "doc" "Why convention convergence was aborted."}
+           (:input-spec (choices "abort"))))))
 
-(defn- compiled-step-map [constructor params]
-  (let [payload (workflow/compile (constructor params) params)]
+(defn- compiled-step-map [definition params]
+  (let [payload (workflow/compile definition params)]
     (into {} (map (juxt :ref identity)) (rest (:strands payload)))))
 
 (deftest aspect-workflows-compile-required-attributes
@@ -296,44 +298,49 @@
                              "shell/cwd"
                              "shell/timeout-secs"])))))))
 
+;; Umbrellas reach their aspects by registered name, so describing one needs the
+;; live registry the module publishes — unlike an aspect definition, which
+;; carries no calls and describes anywhere.
 (deftest flavour-workflow-describes-full-and-selected-aspects
-  (let [constructor (dresser-workflows/flavour-workflow "spool-repo")
-        full-params {:root "/tmp/x"}
-        full (workflow/describe (constructor full-params) full-params)
-        subset-params {:root "/tmp/x"
-                       :aspects ["spool-repo/skein-workspace"]}
-        subset (workflow/describe (constructor subset-params) subset-params)
-        verify-params (assoc subset-params :verify-only true)
-        verify (workflow/describe (constructor verify-params) verify-params)
-        full-gates (into #{} (keep #(when (= "shell" (:gate %)) (:id %)))
-                         (:steps full))
-        subset-gates (into #{} (keep #(when (= "shell" (:gate %)) (:id %)))
-                           (:steps subset))
-        expected-full (into #{}
-                            (mapcat (fn [aspect-key]
-                                      (let [prefix (second (str/split aspect-key #"/" 2))]
-                                        (map #(keyword (str prefix "--" (name (:id %))))
-                                             (:gates (aspects/aspect aspect-key))))))
-                            (aspects/flavour-aspects "spool-repo"))]
-    (is (= expected-full full-gates))
-    (is (= #{:skein-workspace--workspace-files} subset-gates))
-    (is (= #{:skein-workspace--workspace-files :skein-workspace}
-           (set (map :id (:steps verify)))))
-    (is (= #{:skein-workspace--inspect
-             :skein-workspace--conflict
-             :skein-workspace--write-workspace
-             :skein-workspace--workspace-files
-             :skein-workspace}
-           (set (map :id (:steps subset)))))
-    (let [payload (workflow/compile (constructor subset-params) subset-params)
-          root (first (:strands payload))
-          gate (some #(when (= :skein-workspace--workspace-files (:ref %)) %)
-                     (:strands payload))]
-      (is (= {"dresser/flavour" "spool-repo"
-              "dresser/root" "/tmp/x"}
-             (select-keys (:attributes root)
-                          ["dresser/flavour" "dresser/root"])))
-      (is (= "/tmp/x" (get-in gate [:attributes "shell/cwd"]))))))
+  (with-runtime
+    (fn [runtime _]
+      (fixtures/activate-dresser! runtime)
+      (let [params {:root "/tmp/x"}
+            full (workflow/describe :dresser/spool-repo params)
+            subset-definition (dresser-workflows/flavour-workflow
+                               "spool-repo" ["spool-repo/skein-workspace"])
+            subset (workflow/describe subset-definition params)
+            verify (workflow/describe subset-definition
+                                      (assoc params :verify-only true))
+            full-gates (into #{} (keep #(when (= "shell" (:gate %)) (:id %)))
+                             (:steps full))
+            subset-gates (into #{} (keep #(when (= "shell" (:gate %)) (:id %)))
+                               (:steps subset))
+            expected-full (into #{}
+                                (mapcat (fn [aspect-key]
+                                          (let [prefix (second (str/split aspect-key #"/" 2))]
+                                            (map #(keyword (str prefix "--" (name (:id %))))
+                                                 (:gates (aspects/aspect aspect-key))))))
+                                (aspects/flavour-aspects "spool-repo"))]
+        (is (= expected-full full-gates))
+        (is (= #{:skein-workspace--workspace-files} subset-gates))
+        (is (= #{:skein-workspace--workspace-files :skein-workspace}
+               (set (map :id (:steps verify)))))
+        (is (= #{:skein-workspace--inspect
+                 :skein-workspace--conflict
+                 :skein-workspace--write-workspace
+                 :skein-workspace--workspace-files
+                 :skein-workspace}
+               (set (map :id (:steps subset)))))
+        (let [payload (workflow/compile subset-definition params)
+              root (first (:strands payload))
+              gate (some #(when (= :skein-workspace--workspace-files (:ref %)) %)
+                         (:strands payload))]
+          (is (= {"dresser/flavour" "spool-repo"
+                  "dresser/root" "/tmp/x"}
+                 (select-keys (:attributes root)
+                              ["dresser/flavour" "dresser/root"])))
+          (is (= "/tmp/x" (get-in gate [:attributes "shell/cwd"]))))))))
 
 (deftest topology-is-deterministic-and-release-is-pinned
   (let [topology (dresser-workflows/describe-topology)]
@@ -366,10 +373,35 @@
     (is (= :pending (get classification "spool-repo/repo-skeleton")))
     (is (= :current (get classification "spool-repo/agent-docs")))))
 
+(defn- registered-definition [wf-name]
+  (some-> (dresser-workflows/workflow-definitions wf-name)
+          requiring-resolve
+          deref))
+
 (deftest dresser-workflows-declare-stable-resolvable-names
   (is (= 10 (count dresser-workflows/workflow-definitions)))
-  (doseq [[wf-name constructor] dresser-workflows/workflow-definitions]
-    (is (ifn? (requiring-resolve constructor)) (str wf-name))))
+  (doseq [aspect-key (keys aspects/registry)]
+    (is (contains? dresser-workflows/workflow-definitions
+                   (dresser-workflows/registered-name aspect-key))
+        aspect-key))
+  (doseq [wf-name (keys dresser-workflows/workflow-definitions)]
+    (let [definition (registered-definition wf-name)]
+      (is (map? definition) (str wf-name))
+      (is (seq (:steps definition)) (str wf-name))
+      (is (specs/non-blank-string? (:doc definition)) (str wf-name))
+      (is (qualified-keyword? (:param-spec definition)) (str wf-name)))))
+
+(deftest dresser-workflow-entrypoints-match-how-each-name-is-reached
+  ;; Umbrellas begin runs, the abort stage is only ever routed to, and an aspect
+  ;; is only ever expanded inline by its umbrella.
+  (is (= #{:start} (:entrypoints (registered-definition :dresser/spool-repo))))
+  (is (= #{:start} (:entrypoints (registered-definition :dresser/skein-dir))))
+  (is (= #{:continue} (:entrypoints (registered-definition :dresser/abort))))
+  (doseq [aspect-key (keys aspects/registry)]
+    (is (= #{:call}
+           (:entrypoints (registered-definition
+                          (dresser-workflows/registered-name aspect-key))))
+        aspect-key)))
 
 (defn- temp-directory ^Path []
   (Files/createTempDirectory "dresser-test-" (make-array FileAttribute 0)))
@@ -600,9 +632,9 @@
 (deftest contribute-publishes-owner-complete-partitions
   (let [contribution (dresser/contribute {})
         entry (get-in contribution [:ops "dresser"])]
-    (is (= #{workflow/constructor-kind :ops} (set (keys contribution))))
+    (is (= #{workflow/definition-kind :ops} (set (keys contribution))))
     (is (= dresser-workflows/workflow-definitions
-           (get contribution workflow/constructor-kind)))
+           (get contribution workflow/definition-kind)))
     (is (= "dresser" (:name entry)))
     (is (= 'ct.spools.dresser/dresser-op (:fn entry)))
     (is (= 'ct.spools.dresser (:provenance entry)))
@@ -633,6 +665,23 @@
       (let [data (thrown-data #(fixtures/activate-dresser! rt))]
         (is (= :dresser (:module/key data)))))))
 
+(deftest publication-refuses-a-partition-missing-a-name-its-definitions-reach
+  ;; What naming aspects and the abort stage by registered keyword buys: an
+  ;; owner partition that drops a name its own definitions route to or call is
+  ;; refused before it goes live, instead of failing at the pour.
+  (with-runtime-without-executor
+    (fn [rt]
+      (workflow/register-executor! :shell (constantly nil))
+      (doseq [dropped [:dresser/abort :dresser/spool-repo.quality]]
+        (with-redefs [dresser-workflows/workflow-definitions
+                      (dissoc dresser-workflows/workflow-definitions dropped)]
+          (let [data (thrown-data #(fixtures/activate-dresser! rt))
+                conflict (get-in data [:result :conflicts 0 :data])]
+            (is (= :dresser (:module/key data)) (str dropped))
+            (is (= :refused (get-in data [:result :status])) (str dropped))
+            (is (= :workflow/reference-unregistered (:reason conflict)) (str dropped))
+            (is (= dropped (:target conflict)) (str dropped))))))))
+
 (deftest reconcile-refuses-an-unsupported-contribution-status
   (let [data (thrown-data
               #(dresser/reconcile {:runtime nil
@@ -642,11 +691,11 @@
     (is (= #{:applied :removed} (:allowed data)))
     (is (= 'ct.spools.dresser/reconcile (:reconciler data)))))
 
-(deftest module-removal-by-omission-retracts-constructors-and-op
+(deftest module-removal-by-omission-retracts-definitions-and-op
   ;; The deletion-by-omission proof: a full refresh re-collects from startup
   ;; files, where this imperative test declaration does not appear, so the
   ;; kernel removes the module, runs reconcile's :removed branch, and retracts
-  ;; the op and every workflow constructor without dresser code participating.
+  ;; the op and every workflow definition without dresser code participating.
   (fixtures/with-temp-dir [parent]
     (let [root (fixtures/git-init-root! parent "omission")]
       (with-runtime-without-executor

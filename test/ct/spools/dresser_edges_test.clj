@@ -45,6 +45,26 @@
             (is (= (set aspect-keys) (set (keys (:aspects stamp)))))
             (is (every? #{:current} (map (:aspects planned) aspect-keys)))))))))
 
+(deftest full-flavour-start-names-a-registered-definition-and-a-subset-does-not
+  (fixtures/with-temp-dir [parent]
+    (let [root (fixtures/git-init-root! parent "start-target")
+          full-run (target/run-id "spool-repo" root)
+          subset-run (target/verify-run-id "spool-repo" root)]
+      (fixtures/with-dresser-runtime
+        {:real-shell? false}
+        (fn [runtime _]
+          (op! runtime "start" "spool-repo" (str root))
+          (op! runtime "verify" "spool-repo" (str root)
+               "--aspects" "spool-repo/agent-docs")
+          (is (= "spool-repo"
+                 (spool/attr-get (workflow/current-root full-run)
+                                 :workflow/definition-name)))
+          ;; A `call` takes no `:condition`, so a subset of a flavour is a
+          ;; definition the registry cannot hold: dresser builds and pours the
+          ;; value, which names no registered definition.
+          (is (nil? (spool/attr-get (workflow/current-root subset-run)
+                                    :workflow/definition-name))))))))
+
 (deftest quality-subset-pulls-dependency-and-pours-only-closed-selection
   (fixtures/with-temp-dir [parent]
     (let [root (fixtures/git-init-root! parent "subset")

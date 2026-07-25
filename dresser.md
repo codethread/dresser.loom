@@ -64,8 +64,19 @@ Inspect findings and the proposed keep/merge/replace decision for every
 conflicting file inform the checkpoint choice, which is always explicit:
 
 - `clean`: inspection found nothing requiring a decision.
-- `apply-plan`: requires `decisions`, summarizing the per-file choices.
-- `abort`: requires `reason` and routes to the abort stage.
+- `apply-plan`: requires `decisions`, summarizing the per-file choices, judged
+  by `:ct.spools.dresser.specs/conflict-decisions-input`.
+- `abort`: requires `reason` and routes to the abort stage, judged by
+  `:ct.spools.dresser.specs/abort-workflow-input` — the same spec the abort
+  stage's own params answer to, so a reason the checkpoint accepts is a reason
+  the continuation can start on.
+
+A run without `--aspects` starts the registered umbrella `:dresser/<flavour>`
+by name. A selection is narrower than any published definition — a `call` takes
+no condition, so which aspects a definition covers is fixed where it is
+authored — so dresser builds the narrower umbrella and pours the value. Both
+paths produce the same graph for the same aspect set; only a full-flavour run
+records `workflow/definition-name` on its root.
 
 The driver repeats `next` and `advance` for agent-owned work. Ready gates belong
 to the shell executor. A zero exit closes a gate with

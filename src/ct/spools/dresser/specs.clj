@@ -112,10 +112,15 @@
 (s/def ::aspects (s/coll-of ::aspect-key :kind vector?))
 (s/def ::aspect-workflow-input
   (s/keys :req-un [::root] :opt-un [::verify-only]))
+;; An umbrella's aspect set belongs to the definition, not to a run's params:
+;; the engine's :condition grammar cannot exclude a `call`, so which aspects a
+;; definition covers is fixed where it is authored and no param can move it.
 (s/def ::flavour-workflow-input
-  (s/keys :req-un [::root] :opt-un [::verify-only ::aspects]))
+  (s/keys :req-un [::root] :opt-un [::verify-only]))
 (s/def ::reason non-blank-string?)
 (s/def ::abort-workflow-input (s/keys :req-un [::reason]))
+(s/def ::decisions non-blank-string?)
+(s/def ::conflict-decisions-input (s/keys :req-un [::decisions]))
 
 (s/def ::flavour non-blank-string?)
 (s/def ::selection (s/nilable string?))

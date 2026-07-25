@@ -19,6 +19,15 @@ a publication instruction.
 - Known consumer: the dresser operator weaver world, whose `init.clj`
   activates dresser imperatively; the epic's consumer-cutover feature moves it
   to a guarded module declaration against this marker.
+- Also in this marker: the workflow surface moves from constructors to static
+  definitions, following the engine's deletion of the legacy constructor and
+  per-key declaration forms. `ct.spools.dresser.workflows/aspect-workflow` and
+  `flavour-workflow` return definition values instead of param-taking
+  constructors, `abort-workflow` becomes a `def`, and `contribute` publishes
+  under the workflow spool's definition kind rather than its constructor kind.
+  Registry release 5 is unaffected: the topology `describe` reports is
+  unchanged, so the release-5 fingerprint still verifies and `releases` is
+  untouched.
 - Also in this marker: registry release 5. The scaffolded workspace templates
   emitted the removed `runtime/sync!`/`runtime/use!` lifecycle; they now emit
   the module bootstrap `mill init` writes, bumping both workspace aspects to

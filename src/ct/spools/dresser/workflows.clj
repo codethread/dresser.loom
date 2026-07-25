@@ -1,5 +1,18 @@
 (ns ct.spools.dresser.workflows
-  "Workflow constructors compiled from the versioned dresser aspect registry."
+  "Static workflow definitions generated from the versioned dresser aspect registry.
+
+  A registered workflow is a plain value, so `aspect-workflow` and
+  `flavour-workflow` return `workflow/static-definition` maps rather than
+  param-taking constructors, and each `def` below binds one such value. The
+  generator stays a function because the registry — not this file — decides how
+  many definitions exist; what it returns is the value the Var holds, which is
+  what lets `workflow-definitions` publish resolvable symbols under the engine's
+  definition kind and lets a worker read what a registered name means without
+  executing anything.
+
+  Each definition carries its own contract: `:entrypoints` says how the name may
+  be reached, and `:param-spec` names the spec that judges the whole resolved
+  params map, replacing the per-key argument list a constructor used to own."
   (:require [clojure.string :as str]
             [skein.api.spool.alpha :as spool]
             [ct.spools.dresser.aspects :as aspects]
@@ -35,6 +48,19 @@
          " Template keys: " (str/join ", " (:templates setup)) "."
          " Target root: " root ".")))
 
+(def ^:private decisions-input
+  "Declared choice input for `apply-plan`: the whole-map contract `choose!`
+  judges before the recorded decisions become the run's evidence."
+  {:spec ::specs/conflict-decisions-input
+   :doc "Summary of per-file keep/merge/replace decisions."})
+
+(def ^:private abort-reason-input
+  "Declared choice input for `abort`, which is the abort workflow's own param
+  contract: the choice and the continuation it routes to are judged by one spec
+  rather than by two descriptions that can drift apart."
+  {:spec ::specs/abort-workflow-input
+   :doc "Why convention convergence was aborted."})
+
 (defn- conflict-checkpoint [attributes]
   (workflow/checkpoint
    :conflict
@@ -48,16 +74,12 @@
              {:key :apply-plan
               :label "Apply plan"
               :description "Apply the recorded keep/merge/replace decisions."
-              :input [{:key :decisions
-                       :required true
-                       :description "Summary of per-file keep/merge/replace decisions."}]}
+              :input decisions-input}
              {:key :abort
               :label "Abort"
               :description "Stop convention convergence for this target."
               :next :dresser/abort
-              :input [{:key :reason
-                       :required true
-                       :description "Why convention convergence was aborted."}]}]
+              :input abort-reason-input}]
    :attributes (assoc attributes
                       "workflow/decision-point" "conflict-policy")))
 
@@ -96,36 +118,43 @@
            [dependency []]
            (:gates entry))))
 
+(defn registered-name
+  "Return the stable registry name an aspect's definition is published under."
+  [aspect-key]
+  (keyword "dresser" (str/replace aspect-key "/" ".")))
+
 (defn aspect-workflow
-  "Return the one-argument workflow constructor for `aspect-key`."
+  "Return the static workflow definition for `aspect-key`.
+
+  Reached only as a `call` target from its flavour umbrella, so `:call` is the
+  one entrypoint it declares: nothing starts an aspect on its own, and nothing
+  routes to one."
   [aspect-key]
   (spool/require-valid! ::specs/aspect-key aspect-key
                         "Dresser aspect workflow key has an invalid shape")
   (let [entry (aspects/aspect aspect-key)
         [flavour aspect-name] (aspect-parts aspect-key)
-        attributes (aspect-attributes flavour aspect-key (:version entry))]
-    (fn [params]
-      (spool/require-valid! ::specs/aspect-workflow-input params
-                            "Dresser aspect workflow input has an invalid shape")
-      (let [{:keys [verify-only]} params
-            setup (setup-steps entry attributes)
-            gate-dependency (or (:id (peek (:setup entry))) :conflict)]
-        (apply workflow/workflow
-               (str "Dresser " aspect-key)
-               {:params {:root (workflow/param :required true)
-                         :verify-only (workflow/param :default (boolean verify-only))}}
-               (concat
-                [(workflow/step
-                  :inspect
-                  (str "Inspect " aspect-name)
-                  :self
-                  :condition [:!= :verify-only true]
-                  :attributes (assoc attributes
-                                     "workflow/instruction"
-                                     (inspect-instruction entry)))
-                 (conflict-checkpoint attributes)]
-                setup
-                (gate-steps entry gate-dependency attributes)))))))
+        attributes (aspect-attributes flavour aspect-key (:version entry))
+        gate-dependency (or (:id (peek (:setup entry))) :conflict)]
+    (workflow/static-definition
+     (str "Converge the " aspect-key " convention aspect on a target root.")
+     {:entrypoints #{:call}
+      :param-spec ::specs/aspect-workflow-input
+      :defaults {:verify-only false}}
+     (apply workflow/workflow
+            (str "Dresser " aspect-key)
+            (concat
+             [(workflow/step
+               :inspect
+               (str "Inspect " aspect-name)
+               :self
+               :condition [:!= :verify-only true]
+               :attributes (assoc attributes
+                                  "workflow/instruction"
+                                  (inspect-instruction entry)))
+              (conflict-checkpoint attributes)]
+             (setup-steps entry attributes)
+             (gate-steps entry gate-dependency attributes))))))
 
 (def spool-repo-repo-skeleton-workflow
   (aspect-workflow "spool-repo/repo-skeleton"))
@@ -151,42 +180,49 @@
 (defn- call-id [aspect-key]
   (keyword (second (aspect-parts aspect-key))))
 
-(defn- aspect-call [aspect-key dependency root verify-only]
+(defn- aspect-call [aspect-key dependency]
   (cond-> (workflow/call
            (call-id aspect-key)
-           (aspect-workflow aspect-key)
-           {:root root
-            :verify-only (boolean verify-only)}
+           (registered-name aspect-key)
+           {}
            :title (str "Complete " aspect-key))
     dependency (assoc :depends-on [dependency])))
 
 (defn flavour-workflow
-  "Return the one-argument umbrella constructor for `flavour`."
-  [flavour]
-  (spool/require-valid! ::specs/flavour flavour
-                        "Dresser workflow flavour has an invalid shape")
-  (fn [params]
-    (spool/require-valid! ::specs/flavour-workflow-input params
-                          "Dresser flavour workflow input has an invalid shape")
-    (let [{:keys [aspects root verify-only]} params
-          selected (or aspects (aspects/flavour-aspects flavour))
-          calls (second
-                 (reduce (fn [[dependency result] aspect-key]
-                           (let [id (call-id aspect-key)]
-                             [id (conj result (aspect-call aspect-key
-                                                           dependency
-                                                           root
-                                                           verify-only))]))
-                         [nil []]
-                         selected))]
+  "Return the static umbrella definition covering `selected` aspects of `flavour`.
+
+  The one-argument arity covers the flavour's complete aspect set and is what
+  the registry publishes under `:dresser/<flavour>`; `:start` is its only
+  entrypoint, because an umbrella begins a run and is never called or routed to.
+
+  A `call` takes no `:condition`, so which aspects a definition covers is fixed
+  where it is authored and no param can narrow it. The two-argument arity is
+  therefore how an operator's `--aspects` selection is expressed: trusted
+  Clojure builds the narrower definition and pours the value it holds, past the
+  registry boundary rather than through it (TEN-002)."
+  ([flavour]
+   (flavour-workflow flavour (aspects/flavour-aspects flavour)))
+  ([flavour selected]
+   (spool/require-valid! ::specs/flavour flavour
+                         "Dresser workflow flavour has an invalid shape")
+   (spool/require-valid! ::specs/aspects (vec selected)
+                         "Dresser workflow aspect selection has an invalid shape")
+   (let [calls (second
+                (reduce (fn [[dependency result] aspect-key]
+                          [(call-id aspect-key)
+                           (conj result (aspect-call aspect-key dependency))])
+                        [nil []]
+                        selected))]
+     (workflow/static-definition
+      (str "Converge the " flavour " convention aspects on a target root.")
+      {:entrypoints #{:start}
+       :param-spec ::specs/flavour-workflow-input
+       :defaults {:verify-only false}}
       (apply workflow/workflow
              (str "Dresser " flavour)
-             {:params {:root (workflow/param :required true)
-                       :verify-only (workflow/param :default (boolean verify-only))
-                       :aspects (workflow/param :default selected)}
-              :attributes {"dresser/flavour" flavour
-                           "dresser/root" (or root (param-value :root))}}
-             calls))))
+             {:attributes {"dresser/flavour" flavour
+                           "dresser/root" (param-value :root)}}
+             calls)))))
 
 (def spool-repo-workflow
   (flavour-workflow "spool-repo"))
@@ -194,27 +230,31 @@
 (def skein-dir-workflow
   (flavour-workflow "skein-dir"))
 
-(defn abort-workflow
-  "Return the terminal workflow that records an abort reason."
-  [params]
-  (spool/require-valid! ::specs/abort-workflow-input params
-                        "Dresser abort workflow input has an invalid shape")
-  (workflow/workflow
-   "Dresser abort"
-   {:params {:reason (workflow/param :required true)}}
-   (workflow/step
-    :abort
-    "Record dresser abort"
-    :self
-    :attributes {"workflow/instruction"
-                 (fn [params]
-                   (str "Record why dresser convergence was aborted: "
-                        (:reason params)))})))
+(def abort-workflow
+  (workflow/static-definition
+   "Record why dresser convention convergence was aborted, and stop."
+   {:entrypoints #{:continue}
+    :param-spec ::specs/abort-workflow-input}
+   (workflow/workflow
+    "Dresser abort"
+    (workflow/step
+     :abort
+     "Record dresser abort"
+     :self
+     :attributes {"workflow/instruction"
+                  (fn [params]
+                    (str "Record why dresser convergence was aborted: "
+                         (:reason params)))}))))
 
 (def workflow-definitions
-  "Stable workflow names and their resolvable constructors, published as
-  dresser's owner partition of the workflow spool's constructor kind by
-  `ct.spools.dresser/contribute`."
+  "Stable workflow names and the symbols resolving to their static definition
+  Vars, published as dresser's owner partition of the workflow spool's
+  definition kind by `ct.spools.dresser/contribute`.
+
+  Every aspect in the registry appears here under `registered-name`, because the
+  flavour umbrellas reach their aspects by registered name: an aspect dropped
+  from this partition while an umbrella still calls it is refused at refresh
+  rather than at the pour."
   {:dresser/spool-repo 'ct.spools.dresser.workflows/spool-repo-workflow
    :dresser/skein-dir 'ct.spools.dresser.workflows/skein-dir-workflow
    :dresser/abort 'ct.spools.dresser.workflows/abort-workflow
@@ -235,8 +275,7 @@
 
 (defn- topology-mode [aspect-key verify-only]
   (let [params {:root "<root>" :verify-only verify-only}
-        description (workflow/describe ((aspect-workflow aspect-key) params)
-                                       params)]
+        description (workflow/describe (aspect-workflow aspect-key) params)]
     {:steps (mapv #(select-keys % [:id :role :depends-on])
                   (:steps description))
      :gates (into [] (keep #(when (:gate %) (:id %))) (:steps description))}))
