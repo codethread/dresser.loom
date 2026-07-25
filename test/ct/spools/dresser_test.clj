@@ -61,6 +61,10 @@
     "spool-repo/makefile"
     "spool-repo/quality.mk"
     "spool-repo/quality-aliases.edn"
+    "spool-repo/docs.mk"
+    "spool-repo/mkdocs-hooks.py"
+    "spool-repo/mkdocs.yml"
+    "spool-repo/generate-api-docs.clj"
     "skein-dir/deps.edn"
     "skein-dir/makefile"
     "skein-dir/agents.md"
@@ -70,7 +74,9 @@
   #{"spool-repo/deps.edn"
     "spool-repo/src-ns.clj"
     "spool-repo/test-main.clj"
-    "spool-repo/readme"})
+    "spool-repo/readme"
+    "spool-repo/mkdocs.yml"
+    "spool-repo/generate-api-docs.clj"})
 
 (defn- thrown-data [f]
   (try
@@ -98,14 +104,28 @@
 (deftest v1-template-registry-is-complete
   (is (= expected-template-names (set (keys templates/templates)))))
 
-(deftest parameterized-templates-render-name
+(def sample-params
+  "One repo's worth of every template parameter, for rendering assertions.
+
+  Templates declare which parameters they consume, so a template rendered with
+  this map may ignore most of it, but none of them can be missing."
+  {:name "acme"
+   :repo-name "codethread/acme.spool"
+   :git-branch "main"
+   :site-name "acme.spool Docs"
+   :site-description "Source documentation projection for the ct.spools.acme spool"})
+
+(deftest parameterized-templates-render-declared-params
   (doseq [template-name parameterized-template-names]
     (testing template-name
-      (let [content (templates/template template-name {:name "acme"})]
+      (let [content (templates/template template-name sample-params)]
         (is (str/includes? content "acme"))
-        (is (not (str/includes? content "<name>"))))))
-  (is (str/includes? (templates/template "spool-repo/deps.edn" {:name "acme"})
-                     "ct.spools.acme-test")))
+        (doseq [param (keys sample-params)]
+          (is (not (str/includes? content (str "<" (name param) ">"))))))))
+  (is (str/includes? (templates/template "spool-repo/deps.edn" sample-params)
+                     "ct.spools.acme-test"))
+  (is (str/includes? (templates/template "spool-repo/mkdocs.yml" sample-params)
+                     "repo_url: https://github.com/codethread/acme.spool")))
 
 (deftest static-reference-template-is-exact
   (is (= "{\"configFormat\":\"alpha\"}\n"
@@ -136,6 +156,10 @@
    "spool-repo/makefile" "811b289b4f701599523183f7c53df8f30184c4419483c1b17856bdbb3756b97e"
    "spool-repo/quality.mk" "23277f69afd856e58af1bc9d8710ba396b0b1304c90134cc1a4252c2f18800e1"
    "spool-repo/quality-aliases.edn" "0f6a74de4c653b713cd54095ce165b26e22583b21dc8c67ae16467efcb329781"
+   "spool-repo/docs.mk" "634f00b0c7bac4bac2d759bcf929dc9bc5cb1add38f9bf5db589a0d8fc1b02ae"
+   "spool-repo/mkdocs-hooks.py" "0dd1baf0db0b6227cf71c425a58608dbab6e13a49948ff3de189536e5aa69df6"
+   "spool-repo/mkdocs.yml" "ed209733435b83ea5867c7c984134c2d45cefeb06603140a54482e65d208bf27"
+   "spool-repo/generate-api-docs.clj" "4a6e6212eefb4a8b1293e3d71325a11824be521e900d786ccd9d29d22fb07d11"
    "skein-dir/deps.edn" "510249ea4b5005a42495aab90264e30f526f958e2ad07b02055ae230f228e5a9"
    "skein-dir/makefile" "913ec67cf6b6b1cd100bbf75abb812ce05087afbe9bc6f16298dd18303dd9418"
    "skein-dir/agents.md" "db629e70a4a7ef1c8dfb1767ce0e4bf9ef1d98f54c164cdc8175aa0c525b1fa4"
@@ -154,7 +178,9 @@
       ;; Rendered the way aspects/material-data renders them, so the hash guards
       ;; exactly the bytes the release fingerprint covers.
       (is (= (get expected-template-hashes template-name)
-             (sha-256-hex (if (fn? entry) (entry {:name "<name>"}) entry)))))))
+             (sha-256-hex (if (fn? entry)
+                            (entry templates/fingerprint-params)
+                            entry)))))))
 
 (deftest missing-template-resources-fail-loudly
   (let [resource-content (ns-resolve 'ct.spools.dresser.templates 'resource-content)
@@ -164,16 +190,21 @@
 
 (deftest template-lookups-fail-with-data
   (let [unknown (thrown-data #(templates/template "not-a-template"))
-        missing (thrown-data #(templates/template "spool-repo/deps.edn"))]
+        missing (thrown-data #(templates/template "spool-repo/deps.edn"))
+        partial (thrown-data #(templates/template "spool-repo/mkdocs.yml"
+                                                  {:name "acme"}))]
     (is (= "not-a-template" (:template unknown)))
     (is (contains? (:known unknown) "skein/config.json"))
     (is (= "spool-repo/deps.edn" (:template missing)))
     (is (= :name (:required missing)))
-    (is (= {} (:params missing)))))
+    (is (= {} (:params missing)))
+    ;; A template consuming more than :name names the parameter it is short of,
+    ;; rather than emitting an unsubstituted placeholder into an owned file.
+    (is (= :repo-name (:required partial)))))
 
 (deftest template-lines-fit-review-width
   (doseq [[template-name entry] templates/templates
-          :let [content (if (fn? entry) (entry {:name "acme"}) entry)]
+          :let [content (if (fn? entry) (entry sample-params) entry)]
           [line-number line] (map-indexed vector (str/split-lines content))]
     (testing (str template-name ":" (inc line-number))
       (is (<= (count line) 180)))))
@@ -188,6 +219,9 @@
    {:setup [:write-agents-md] :gates [:agents-md]}
    "spool-repo/quality"
    {:setup [:write-quality-config :write-makefiles] :gates [:fmt-check :lint]}
+   "spool-repo/docs"
+   {:setup [:write-docs-pipeline :link-docs-projection]
+    :gates [:docs-files :docs-targets :docs-check]}
    "skein-dir/workspace"
    {:setup [:write-workspace] :gates [:workspace-files :init-header]}
    "skein-dir/quality"
@@ -201,6 +235,7 @@
           "spool-repo/skein-workspace" 3
           "spool-repo/agent-docs" 1
           "spool-repo/quality" 3
+          "spool-repo/docs" 1
           "skein-dir/workspace" 3
           "skein-dir/quality" 2
           "skein-dir/agent-docs" 1}
@@ -432,7 +467,7 @@
           deref))
 
 (deftest dresser-workflows-declare-stable-resolvable-names
-  (is (= 10 (count dresser-workflows/workflow-definitions)))
+  (is (= 11 (count dresser-workflows/workflow-definitions)))
   (doseq [aspect-key (keys aspects/registry)]
     (is (contains? dresser-workflows/workflow-definitions
                    (dresser-workflows/registered-name aspect-key))

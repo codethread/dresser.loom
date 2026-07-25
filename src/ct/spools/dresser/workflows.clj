@@ -168,6 +168,9 @@
 (def spool-repo-quality-workflow
   (aspect-workflow "spool-repo/quality"))
 
+(def spool-repo-docs-workflow
+  (aspect-workflow "spool-repo/docs"))
+
 (def skein-dir-workspace-workflow
   (aspect-workflow "skein-dir/workspace"))
 
@@ -266,6 +269,8 @@
    'ct.spools.dresser.workflows/spool-repo-agent-docs-workflow
    :dresser/spool-repo.quality
    'ct.spools.dresser.workflows/spool-repo-quality-workflow
+   :dresser/spool-repo.docs
+   'ct.spools.dresser.workflows/spool-repo-docs-workflow
    :dresser/skein-dir.workspace
    'ct.spools.dresser.workflows/skein-dir-workspace-workflow
    :dresser/skein-dir.quality

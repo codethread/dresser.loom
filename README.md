@@ -21,7 +21,8 @@ in [dresser.md](./dresser.md).
 
 Dresser installs no prerequisite transitively. The target repository does not
 need Skein or a running weaver; it only needs to be an existing git worktree
-root.
+root. Gates run the target's own toolchain, so `spool-repo/docs` additionally
+needs `make`, `clojure` and `uvx` on the operator's PATH.
 
 ## Dependency information
 
@@ -134,6 +135,7 @@ strand dresser stamp spool-repo/repo-skeleton /path/to/target
 strand dresser stamp spool-repo/skein-workspace /path/to/target
 strand dresser stamp spool-repo/agent-docs /path/to/target
 strand dresser stamp spool-repo/quality /path/to/target
+strand dresser stamp spool-repo/docs /path/to/target
 strand dresser plan /path/to/target
 ```
 

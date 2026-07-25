@@ -18,7 +18,7 @@
    3 "3241b836a15e41a30428db2d09df9b24a4570abb1f273c50f898dc2b19ca1f89"
    4 "8a0623a366b78d71a5dce9304a82904b38ad80f9454a54550d4c385bfb39f036"
    5 "c65d4c1710f6ec952da6afb57bda81e0b8ae0ee663c33a33ef7954963f800516"
-   6 "f6b97e7e47694005d6b7db3fe6fd61282b5509e9b9fe3b52d8db4f002c0e7df5"})
+   6 "769a710e04cc09cd727cff7f2e12f4ae81c4591e17134d2b5114522278c14537"})
 
 (def ^:private conflict-discipline
   "Honor the recorded conflict decisions for every owned file: keep preserves the customization, merge reconciles it with the canonical template, and replace uses the canonical template.")
@@ -30,7 +30,7 @@
    :templates template-keys})
 
 (def registry
-  "The seven versioned dresser aspects, keyed by <flavour>/<aspect>."
+  "The eight versioned dresser aspects, keyed by <flavour>/<aspect>."
   {"spool-repo/repo-skeleton"
    {:version 4
     :deps []
@@ -106,6 +106,38 @@
              :title "Run linters"
              :argv ["make" "lint"]
              :timeout-secs 600}]}
+
+   "spool-repo/docs"
+   {:version 1
+    :deps ["spool-repo/quality"]
+    :owned ["mkdocs.yml"
+            "scripts/mkdocs_hooks.py"
+            "scripts/generate_api_docs.clj"
+            "make/docs.mk"]
+    :inspect "Compare the mkdocs config, its link-rewriting hook, the quickdoc generator, and make/docs.mk with the canonical templates; confirm .mkdocs/ projects every page the nav names, that .gitignore ignores site/ and that Makefile keeps its make/*.mk include; record findings, and record a keep/merge/replace decision for each conflict."
+    :setup [(setup :write-docs-pipeline "Write docs pipeline"
+                   "Converge mkdocs.yml, scripts/mkdocs_hooks.py, scripts/generate_api_docs.clj, and make/docs.mk using templates spool-repo/mkdocs.yml, spool-repo/mkdocs-hooks.py, spool-repo/generate-api-docs.clj, and spool-repo/docs.mk. Render the two parameterized templates with name, repo-name as <github-owner>/<repo>, git-branch as the branch source links pin, site-name as the published site title, and site-description as one sentence naming what the repo documents. The baseline publishes one API page for ct.spools.<name>; extend the generator's api-docs vector and the mkdocs nav with one entry per further namespace that earns a published page, and add Contract or Cookbook nav rows for hand-written pages this repo already has. Only the generator reads git-branch: mkdocs_hooks.py hardcodes /blob/main/ for the links it rewrites, so a default branch other than main links correctly from API pages and wrongly from every other page."
+                   ["spool-repo/mkdocs.yml" "spool-repo/mkdocs-hooks.py"
+                    "spool-repo/generate-api-docs.clj" "spool-repo/docs.mk"])
+            (setup :link-docs-projection "Link docs projection"
+                   "Build the .mkdocs/ docs collection as symlinks to the repository files it publishes, so every page has exactly one source: .mkdocs/index.md -> ../README.md plus one symlink per remaining nav row, each named for the repo path it points at. Symlinks are not file content, so dresser cannot write them from a template; run make api-docs first when a generated API page does not exist yet. mkdocs builds --strict, so a nav row without its symlink fails the docs gate."
+                   ["spool-repo/mkdocs.yml"])]
+    :gates [{:id :docs-files
+             :title "Check docs projection files"
+             :argv ["sh" "-c" "test -f mkdocs.yml && test -f scripts/mkdocs_hooks.py && test -f scripts/generate_api_docs.clj && test -f make/docs.mk && test -L .mkdocs/index.md && grep -qF 'include make/*.mk' Makefile && grep -q '^site/$' .gitignore"]
+             :timeout-secs 30}
+            {:id :docs-targets
+             :title "Check docs targets resolve"
+             :argv ["sh" "-c" "make -n api-docs docs-site docs-check >/dev/null"]
+             :timeout-secs 60}
+            {:id :docs-check
+             :title "Regenerate API docs and build site"
+             ;; Cold uvx and gitlibs caches dominate this gate: a first run
+             ;; resolves the whole mkdocs toolchain and the quickdoc git dep
+             ;; before any work starts, so it needs far more headroom than the
+             ;; other gates, all of which run against warm local tooling.
+             :argv ["make" "docs-check"]
+             :timeout-secs 900}]}
 
    "skein-dir/workspace"
    {:version 3
@@ -221,7 +253,7 @@
 (defn- template-contents []
   (into (sorted-map)
         (map (fn [[key entry]]
-               [key (if (fn? entry) (entry {:name "<name>"}) entry)]))
+               [key (if (fn? entry) (entry templates/fingerprint-params) entry)]))
         templates/templates))
 
 (defn material-data

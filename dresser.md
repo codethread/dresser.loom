@@ -17,17 +17,23 @@ Dependencies are closed automatically when a subset is selected.
 
 | Flavour | Aspect | Version | Depends on | Gate ids |
 |---|---|---:|---|---|
-| `spool-repo` | `repo-skeleton` | 3 | — | `test-suite`, `readme-sections` |
-| `spool-repo` | `skein-workspace` | 2 | — | `workspace-files` |
+| `spool-repo` | `repo-skeleton` | 4 | — | `test-suite`, `readme-sections` |
+| `spool-repo` | `skein-workspace` | 3 | — | `workspace-files` |
 | `spool-repo` | `agent-docs` | 1 | — | `agents-md` |
-| `spool-repo` | `quality` | 2 | `spool-repo/repo-skeleton` | `fmt-check`, `lint` |
-| `skein-dir` | `workspace` | 2 | — | `workspace-files`, `init-header` |
+| `spool-repo` | `quality` | 3 | `spool-repo/repo-skeleton` | `fmt-check`, `lint` |
+| `spool-repo` | `docs` | 1 | `spool-repo/quality` | `docs-files`, `docs-targets`, `docs-check` |
+| `skein-dir` | `workspace` | 3 | — | `workspace-files`, `init-header` |
 | `skein-dir` | `quality` | 2 | `skein-dir/workspace` | `fmt-check`, `lint` |
 | `skein-dir` | `agent-docs` | 1 | `skein-dir/workspace` | `agent-docs-files` |
 
 `spool-repo` describes a shared-spool repository with source, tests, root
-quality tooling, agent guidance, and a minimal `.skein` workspace. `skein-dir`
-describes a self-contained `.skein` workspace and never owns host-root files.
+quality tooling, agent guidance, a published documentation site, and a minimal
+`.skein` workspace. `skein-dir` describes a self-contained `.skein` workspace
+and never owns host-root files.
+
+`spool-repo/docs` needs `make`, `clojure` and `uvx` on the operator's PATH: its
+`docs-check` gate regenerates the quickdoc API pages and builds the site with a
+pinned mkdocs toolchain, so a first run resolves both caches over the network.
 
 ## Commands
 

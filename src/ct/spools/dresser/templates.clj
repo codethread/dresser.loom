@@ -35,24 +35,28 @@
                    {:template template-name
                     :resource path}))))
 
-(defn- require-name [{:keys [name] :as params} template-name]
-  (when-not (specs/non-blank-string? name)
-    (spool/fail! "Template requires a non-blank :name"
-                 {:template template-name
-                  :required :name
-                  :params params}))
-  name)
+(defn- require-param [params template-name param]
+  (let [value (get params param)]
+    (when-not (specs/non-blank-string? value)
+      (spool/fail! (str "Template requires a non-blank " param)
+                   {:template template-name
+                    :required param
+                    :params params}))
+    value))
 
-(defn- render-name
-  "Render a parameterized template by substituting its `<name>` placeholder.
+(defn- render-params
+  "Render a parameterized template by substituting each `<param>` placeholder.
 
-  `<name>` is the placeholder aspects/material-data already renders these
-  templates with, so each backing resource is byte-identical to the content
-  the release fingerprint hashes."
-  [template-name params]
-  (str/replace (resource-content template-name)
-               "<name>"
-               (require-name params template-name)))
+  A placeholder is spelled exactly as its parameter, which is what lets
+  `fingerprint-params` render every template back to its backing resource's
+  own bytes — the content the release fingerprint hashes."
+  [template-name param-keys params]
+  (reduce (fn [content param]
+            (str/replace content
+                         (str "<" (name param) ">")
+                         (require-param params template-name param)))
+          (resource-content template-name)
+          param-keys))
 
 (def ^:private static-template-names
   ["skein/config.json"
@@ -67,23 +71,43 @@
    "spool-repo/makefile"
    "spool-repo/quality.mk"
    "spool-repo/quality-aliases.edn"
+   "spool-repo/docs.mk"
+   "spool-repo/mkdocs-hooks.py"
    "skein-dir/deps.edn"
    "skein-dir/makefile"
    "skein-dir/agents.md"
    "skein-dir/claude.md"])
 
 (def ^:private parameterized-template-names
-  ["spool-repo/deps.edn"
-   "spool-repo/src-ns.clj"
-   "spool-repo/test-main.clj"
-   "spool-repo/readme"])
+  "Template key -> the params its placeholders consume, in substitution order.
+
+  `:name` substitutes first everywhere so a repo-authored value carrying a
+  literal `<name>` is never re-read as a placeholder."
+  {"spool-repo/deps.edn" [:name]
+   "spool-repo/src-ns.clj" [:name]
+   "spool-repo/test-main.clj" [:name]
+   "spool-repo/readme" [:name]
+   "spool-repo/mkdocs.yml" [:name :repo-name :site-name :site-description]
+   "spool-repo/generate-api-docs.clj" [:name :repo-name :git-branch]})
+
+(def fingerprint-params
+  "Params rendering every template back to its backing resource's exact bytes.
+
+  Each parameter maps to its own placeholder, so the release fingerprint hashes
+  resource content rather than a sample rendering: adding a parameter to a new
+  template cannot move an existing template's recorded hash, and a template that
+  demands a parameter no longer fails fingerprinting the way a `:name`-only stub
+  made it."
+  (into {}
+        (map (juxt identity #(str "<" (name %) ">")))
+        (into (sorted-set) cat (vals parameterized-template-names))))
 
 (def templates
   "Canonical template content by key: a string, or a fn of a params map."
   (merge (into {} (map (juxt identity resource-content)) static-template-names)
          (into {}
-               (map (fn [template-name]
-                      [template-name #(render-name template-name %)]))
+               (map (fn [[template-name param-keys]]
+                      [template-name #(render-params template-name param-keys %)]))
                parameterized-template-names)))
 
 (defn template

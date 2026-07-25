@@ -1,0 +1,53 @@
+site_name: <site-name>
+site_description: <site-description>
+site_url: ""
+docs_dir: .mkdocs
+site_dir: site
+
+repo_url: https://github.com/<repo-name>
+repo_name: <repo-name>
+
+# Rewrites repo-relative links that leave the docs collection (source files,
+# scripts) to GitHub blob URLs, so builds can run --strict and every remaining
+# warning is a genuinely broken link.
+hooks:
+  - scripts/mkdocs_hooks.py
+
+theme:
+  name: material
+  features:
+    - content.code.copy
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  # The homepage is the repository README, which is written in GitHub-flavored
+  # markdown: md_in_html renders the fenced code inside its <details markdown>
+  # dropdowns, gfm_admonition renders its > [!NOTE] alerts.
+  - md_in_html
+  - gfm_admonition
+
+nav:
+  # The root landing page is the repository README (.mkdocs/index.md symlinks
+  # it), so the site opens on the same pitch as GitHub.
+  - Home: index.md
+  # Generated per-var reference, never a hand-written behavior contract. Every
+  # entry must have a .mkdocs symlink: mkdocs --strict fails on a nav row whose
+  # page is missing, so add the row and the symlink in the same change.
+  - API:
+      - ct.spools.<name>: <name>.api.md

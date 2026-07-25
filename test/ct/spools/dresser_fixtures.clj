@@ -145,6 +145,30 @@
   (-> (templates/template "spool-repo/deps.edn" {:name (fixture-name root)})
       (str/replace "../skein-src" (sibling-skein-root))))
 
+(defn- docs-params
+  "One plausible repo's docs parameters, the way a driving agent would fill them."
+  [name]
+  {:name name
+   :repo-name (str "codethread/" name ".spool")
+   :git-branch "main"
+   :site-name (str name ".spool Docs")
+   :site-description (str "Source documentation projection for the ct.spools." name " spool")})
+
+(defn- symlink!
+  "Project a repo file into the docs collection the way the setup step asks.
+
+  The generated API page does not exist until the gate's `make api-docs` runs,
+  so this link is deliberately allowed to dangle until then. Seeding and then
+  driving a run writes every step's files twice, so replace rather than create."
+  [root link target]
+  (let [file (io/file (str root) link)
+        path (.toPath file)]
+    (io/make-parents file)
+    (Files/deleteIfExists path)
+    (Files/createSymbolicLink path
+                              (.toPath (io/file target))
+                              (make-array FileAttribute 0))))
+
 (defn- merge-quality-aliases! [root]
   (let [deps-file (io/file (str root) "deps.edn")
         deps (edn/read-string (slurp deps-file))
@@ -198,6 +222,20 @@
                ["make/quality.mk" "spool-repo/quality.mk"]]]
         (write-template! root relative template-key))
 
+      "Write docs pipeline"
+      (doseq [[relative template-key]
+              [["mkdocs.yml" "spool-repo/mkdocs.yml"]
+               ["scripts/mkdocs_hooks.py" "spool-repo/mkdocs-hooks.py"]
+               ["scripts/generate_api_docs.clj" "spool-repo/generate-api-docs.clj"]
+               ["make/docs.mk" "spool-repo/docs.mk"]]]
+        (write-template! root relative template-key (docs-params name)))
+
+      "Link docs projection"
+      (doseq [[link target] [[".mkdocs/index.md" "../README.md"]
+                             [(str ".mkdocs/" name ".api.md")
+                              (str "../" name ".api.md")]]]
+        (symlink! root link target))
+
       nil)))
 
 (defn seed-spool-repo!
@@ -210,7 +248,9 @@
                  "Write Skein workspace"
                  "Write AGENTS.md"
                  "Write quality config"
-                 "Write Makefile fragments"]]
+                 "Write Makefile fragments"
+                 "Write docs pipeline"
+                 "Link docs projection"]]
     (write-spool-repo-step-files! root title))
   root)
 
