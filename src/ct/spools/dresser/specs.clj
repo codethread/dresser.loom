@@ -30,8 +30,27 @@
 (s/def ::inspect non-blank-string?)
 (s/def ::setup (s/coll-of ::setup-entry :kind vector?))
 (s/def ::gates (s/coll-of ::gate-entry :kind vector? :min-count 1))
+;; A registry checkpoint is a decision no shell gate can make or verify, so its
+;; whole contract is the choice set: every choice needs an operator-readable
+;; label and description, and any choice demanding evidence names the spec that
+;; judges it rather than describing the map in prose.
+(s/def ::checkpoint-choice
+  (s/and map?
+         #(keyword? (:key %))
+         #(non-blank-string? (:label %))
+         #(non-blank-string? (:description %))
+         #(or (not (contains? % :next)) (qualified-keyword? (:next %)))
+         #(or (not (contains? % :input))
+              (and (map? (:input %))
+                   (qualified-keyword? (:spec (:input %)))
+                   (non-blank-string? (:doc (:input %)))))))
+(s/def ::choices (s/coll-of ::checkpoint-choice :kind vector? :min-count 2))
+(s/def ::checkpoint-entry
+  (s/keys :req-un [::id ::title ::instruction ::choices]))
+(s/def ::checkpoints (s/coll-of ::checkpoint-entry :kind vector? :min-count 1))
 (s/def ::registry-entry
-  (s/keys :req-un [::version ::deps ::owned ::inspect ::setup ::gates]))
+  (s/keys :req-un [::version ::deps ::owned ::inspect ::setup ::gates]
+          :opt-un [::checkpoints]))
 (s/def ::registry (s/map-of ::aspect-key ::registry-entry :min-count 1))
 
 (s/def ::applied-at non-blank-string?)
@@ -121,6 +140,8 @@
 (s/def ::abort-workflow-input (s/keys :req-un [::reason]))
 (s/def ::decisions non-blank-string?)
 (s/def ::conflict-decisions-input (s/keys :req-un [::decisions]))
+(s/def ::site-url non-blank-string?)
+(s/def ::pages-enabled-input (s/keys :req-un [::site-url]))
 
 (s/def ::flavour non-blank-string?)
 (s/def ::selection (s/nilable string?))

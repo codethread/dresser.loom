@@ -236,6 +236,12 @@
                               (str "../" name ".api.md")]]]
         (symlink! root link target))
 
+      "Write CI workflows"
+      (doseq [[relative template-key]
+              [[".github/workflows/quality.yml" "spool-repo/quality.yml"]
+               [".github/workflows/pages.yml" "spool-repo/pages.yml"]]]
+        (write-template! root relative template-key params))
+
       nil)))
 
 (defn seed-spool-repo!
@@ -250,7 +256,8 @@
                  "Write quality config"
                  "Write Makefile fragments"
                  "Write docs pipeline"
-                 "Link docs projection"]]
+                 "Link docs projection"
+                 "Write CI workflows"]]
     (write-spool-repo-step-files! root title))
   root)
 
@@ -357,6 +364,18 @@
                  (weaver/op! runtime 'dresser base)))
              (recur (inc driven)))))))))
 
+(defn- checkpoint-choice
+  "The choice this fixture answers a ready checkpoint with.
+
+  A fixture repo is a throwaway temp directory with no GitHub remote, so the
+  Pages checkpoint is answered honestly: the workflow files are converged and
+  Pages is knowingly off. Every other checkpoint is the owned-file conflict one,
+  which a freshly templated tree answers clean."
+  [step]
+  (if (str/starts-with? (:title step) "Enable GitHub Actions")
+    "deferred"
+    "clean"))
+
 (defn drive-spool-repo!
   "Drive all spool-repo agent work, leaving gates to the real shell executor."
   [runtime root]
@@ -371,7 +390,8 @@
                 step (first ready)
                 base ["advance" "spool-repo" (str root)]]
             (if (= "checkpoint" (:role step))
-              (weaver/op! runtime 'dresser (conj base "--choice" "clean"))
+              (weaver/op! runtime 'dresser
+                          (conj base "--choice" (checkpoint-choice step)))
               (do
                 (when-not (str/starts-with? (:title step) "Inspect ")
                   (write-spool-repo-step-files! root (:title step)))

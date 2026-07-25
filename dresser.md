@@ -22,6 +22,7 @@ Dependencies are closed automatically when a subset is selected.
 | `spool-repo` | `agent-docs` | 1 | — | `agents-md` |
 | `spool-repo` | `quality` | 3 | `spool-repo/repo-skeleton` | `fmt-check`, `lint` |
 | `spool-repo` | `docs` | 1 | `spool-repo/quality` | `docs-files`, `docs-targets`, `docs-check` |
+| `spool-repo` | `ci` | 1 | `spool-repo/docs` | `workflow-files`, `workflow-targets` |
 | `skein-dir` | `workspace` | 3 | — | `workspace-files`, `init-header` |
 | `skein-dir` | `quality` | 2 | `skein-dir/workspace` | `fmt-check`, `lint` |
 | `skein-dir` | `agent-docs` | 1 | `skein-dir/workspace` | `agent-docs-files` |
@@ -34,6 +35,14 @@ and never owns host-root files.
 `spool-repo/docs` needs `make`, `clojure` and `uvx` on the operator's PATH: its
 `docs-check` gate regenerates the quickdoc API pages and builds the site with a
 pinned mkdocs toolchain, so a first run resolves both caches over the network.
+
+`spool-repo/ci` converges two GitHub Actions workflows, so it only makes sense
+for a repository hosted on GitHub with `main` as its default branch. Its gates
+are structural — the workflows' own `actionlint` job owns their syntax, because
+they are hand-edited long after convergence and a local gate would put a Go
+toolchain on every machine that ever converges the aspect. Publishing the site
+additionally needs admin rights on the repository, which is what the
+`pages-source` checkpoint records.
 
 ## Commands
 
@@ -65,9 +74,10 @@ Stamp never uses a verify run or an older setup molecule as evidence.
 
 `start` resolves the target root, validates the flavour and selected aspects,
 and pours one setup workflow. Each aspect has an inspect step, a required human
-conflict checkpoint, zero or more setup steps, then its verification gates.
-Inspect findings and the proposed keep/merge/replace decision for every
-conflicting file inform the checkpoint choice, which is always explicit:
+conflict checkpoint, zero or more setup steps, zero or more further human
+checkpoints, then its verification gates. Inspect findings and the proposed
+keep/merge/replace decision for every conflicting file inform the conflict
+checkpoint choice, which is always explicit:
 
 - `clean`: inspection found nothing requiring a decision.
 - `apply-plan`: requires `decisions`, summarizing the per-file choices, judged
@@ -76,6 +86,18 @@ conflicting file inform the checkpoint choice, which is always explicit:
   `:ct.spools.dresser.specs/abort-workflow-input` — the same spec the abort
   stage's own params answer to, so a reason the checkpoint accepts is a reason
   the continuation can start on.
+
+An aspect declaring further checkpoints places them after its setup steps and
+before its gates. They record decisions about state outside the target tree,
+which no gate can read or write, so — like setup steps — they are absent from a
+verify-only run. `spool-repo/ci` declares one, `pages-source`:
+
+- `enabled`: requires `site-url`, judged by
+  `:ct.spools.dresser.specs/pages-enabled-input`.
+- `deferred`: the workflows are converged and GitHub Pages stays off. A repo may
+  adopt the CI gates without publishing a site; the deploy job is knowingly red
+  on push to `main` until an admin enables Pages.
+- `abort`: requires `reason` and routes to the abort stage.
 
 A run without `--aspects` starts the registered umbrella `:dresser/<flavour>`
 by name. A selection is narrower than any published definition — a `call` takes

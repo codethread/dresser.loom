@@ -18,7 +18,7 @@
    3 "3241b836a15e41a30428db2d09df9b24a4570abb1f273c50f898dc2b19ca1f89"
    4 "8a0623a366b78d71a5dce9304a82904b38ad80f9454a54550d4c385bfb39f036"
    5 "c65d4c1710f6ec952da6afb57bda81e0b8ae0ee663c33a33ef7954963f800516"
-   6 "769a710e04cc09cd727cff7f2e12f4ae81c4591e17134d2b5114522278c14537"})
+   6 "aa2be5475533af09a5389031801442580da33f96f37a43ce9305d78c074a49ac"})
 
 (def ^:private conflict-discipline
   "Honor the recorded conflict decisions for every owned file: keep preserves the customization, merge reconciles it with the canonical template, and replace uses the canonical template.")
@@ -30,7 +30,7 @@
    :templates template-keys})
 
 (def registry
-  "The eight versioned dresser aspects, keyed by <flavour>/<aspect>."
+  "The nine versioned dresser aspects, keyed by <flavour>/<aspect>."
   {"spool-repo/repo-skeleton"
    {:version 4
     :deps []
@@ -138,6 +138,44 @@
              ;; other gates, all of which run against warm local tooling.
              :argv ["make" "docs-check"]
              :timeout-secs 900}]}
+
+   "spool-repo/ci"
+   {:version 1
+    :deps ["spool-repo/docs"]
+    :owned [".github/workflows/quality.yml" ".github/workflows/pages.yml"]
+    :inspect "Compare both GitHub Actions workflows with the canonical templates, confirm the repository has a GitHub remote whose default branch is main, record findings, and record a keep/merge/replace decision for each conflict."
+    :setup [(setup :write-workflows "Write CI workflows"
+                   "Converge .github/workflows/quality.yml and .github/workflows/pages.yml using templates spool-repo/quality.yml and spool-repo/pages.yml. Render quality.yml with name; it checks the repository out beside a sibling Skein checkout at <name>.spool, which is the layout the test alias' ../skein-src coordinate assumes. The quality gate consolidates clj-kondo and splint behind one make lint job, so a red build names lint rather than the offending linter; that is deliberate for a four-job repo, not an oversight. Quality gate is the job name branch protection binds to as a required check, so renaming it silently unbinds the protection."
+                   ["spool-repo/quality.yml" "spool-repo/pages.yml"])]
+    :checkpoints [{:id :pages-source
+                   :title "Enable GitHub Actions as the Pages build source"
+                   :instruction "pages.yml deploys through the native GitHub Actions Pages flow, which needs the repository's Pages build source set to GitHub Actions; it defaults to \"Deploy from a branch\", and until it changes the deploy job fails on every push to main even though the workflow runs. One authenticated command sets it: gh api -X POST repos/<owner>/<repo>/pages -f build_type=workflow. Without gh, a repo admin sets Settings -> Pages -> \"Build and deployment\" to GitHub Actions. The workflow cannot do this for itself: actions/configure-pages with enablement: true fails with \"Resource not accessible by integration\" when the repository has no Pages site yet, so do not reach for it. Dresser has no credential model and no gate can read or write this setting, which is why the answer is recorded here instead."
+                   :choices [{:key :enabled
+                              :label "Enabled"
+                              :description "The Pages build source is set to GitHub Actions."
+                              :input {:spec ::specs/pages-enabled-input
+                                      :doc "The published site URL, e.g. https://codethread.github.io/kanban.spool/."}}
+                             {:key :deferred
+                              :label "Deferred"
+                              :description "Workflow files are in place and Pages stays off. A repo can adopt the CI gates without publishing a site; the deploy job is knowingly red on push to main until an admin enables it."}
+                             {:key :abort
+                              :label "Abort"
+                              :description "Stop convention convergence for this target."
+                              :next :dresser/abort
+                              :input {:spec ::specs/abort-workflow-input
+                                      :doc "Why convention convergence was aborted."}}]}]
+    :gates [{:id :workflow-files
+             :title "Check workflow files"
+             :argv ["sh" "-c" "test -f .github/workflows/quality.yml && test -f .github/workflows/pages.yml && grep -q 'name: Quality gate' .github/workflows/quality.yml && grep -q 'actions/deploy-pages@v4' .github/workflows/pages.yml"]
+             :timeout-secs 30}
+            {:id :workflow-targets
+             :title "Check workflow targets resolve"
+             ;; Workflow syntax is linted by quality.yml's own actionlint job
+             ;; rather than here: the files are hand-edited long after
+             ;; convergence, and a local gate would put a Go toolchain on every
+             ;; machine that ever converges this aspect.
+             :argv ["sh" "-c" "make -n fmt-check lint test docs-check >/dev/null"]
+             :timeout-secs 60}]}
 
    "skein-dir/workspace"
    {:version 3
@@ -263,12 +301,17 @@
   (canonical
    {:aspects
     (into (sorted-map)
-          (map (fn [[key {:keys [version deps owned inspect setup gates]}]]
+          (map (fn [[key {:keys [version deps owned inspect setup checkpoints gates]}]]
                  [key {:version version
                        :deps deps
                        :owned owned
                        :inspect inspect
                        :setup (mapv #(select-keys % [:instruction :templates]) setup)
+                       ;; A checkpoint's text and choice set are the whole
+                       ;; contract of a decision no gate can make, so they are
+                       ;; material to the release the same way an instruction is.
+                       :checkpoints (mapv #(select-keys % [:instruction :choices])
+                                          checkpoints)
                        :gates (mapv #(select-keys % [:argv :timeout-secs]) gates)}]))
           registry)
     :templates (template-contents)

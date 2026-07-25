@@ -73,6 +73,7 @@
    "spool-repo/quality-aliases.edn"
    "spool-repo/docs.mk"
    "spool-repo/mkdocs-hooks.py"
+   "spool-repo/pages.yml"
    "skein-dir/deps.edn"
    "skein-dir/makefile"
    "skein-dir/agents.md"
@@ -88,7 +89,8 @@
    "spool-repo/test-main.clj" [:name]
    "spool-repo/readme" [:name]
    "spool-repo/mkdocs.yml" [:name :repo-name :site-name :site-description]
-   "spool-repo/generate-api-docs.clj" [:name :repo-name :git-branch]})
+   "spool-repo/generate-api-docs.clj" [:name :repo-name :git-branch]
+   "spool-repo/quality.yml" [:name]})
 
 (def fingerprint-params
   "Params rendering every template back to its backing resource's exact bytes.

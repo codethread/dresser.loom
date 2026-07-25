@@ -48,6 +48,11 @@
          " Template keys: " (str/join ", " (:templates setup)) "."
          " Target root: " root ".")))
 
+(defn- checkpoint-instruction [checkpoint]
+  (fn [{:keys [root]}]
+    (str (:instruction checkpoint)
+         " Target root: " root ".")))
+
 (def ^:private decisions-input
   "Declared choice input for `apply-plan`: the whole-map contract `choose!`
   judges before the recorded decisions become the run's evidence."
@@ -100,6 +105,31 @@
            [:conflict []]
            (:setup entry))))
 
+(defn- aspect-checkpoints
+  "Return an aspect's registry-declared checkpoints, chained after `dependency`.
+
+  These stand where a gate would if the fact were checkable: they record an
+  operator's answer about state outside the target tree, so like every setup
+  step they are excluded from a verify-only run, which carries gates alone."
+  [entry dependency attributes]
+  (second
+   (reduce (fn [[checkpoint-dependency steps] {:keys [id title choices] :as checkpoint}]
+             [id
+              (conj steps
+                    (workflow/checkpoint
+                     id
+                     title
+                     :kind :human
+                     :condition [:!= :verify-only true]
+                     :depends-on [checkpoint-dependency]
+                     :choices choices
+                     :attributes (assoc attributes
+                                        "workflow/decision-point" (name id)
+                                        "workflow/instruction"
+                                        (checkpoint-instruction checkpoint))))])
+           [dependency []]
+           (:checkpoints entry))))
+
 (defn- gate-steps [entry dependency attributes]
   (second
    (reduce (fn [[gate-dependency steps] {:keys [id title argv timeout-secs]}]
@@ -135,7 +165,8 @@
   (let [entry (aspects/aspect aspect-key)
         [flavour aspect-name] (aspect-parts aspect-key)
         attributes (aspect-attributes flavour aspect-key (:version entry))
-        gate-dependency (or (:id (peek (:setup entry))) :conflict)]
+        setup-dependency (or (:id (peek (:setup entry))) :conflict)
+        gate-dependency (or (:id (peek (:checkpoints entry))) setup-dependency)]
     (workflow/static-definition
      (str "Converge the " aspect-key " convention aspect on a target root.")
      {:entrypoints #{:call}
@@ -154,6 +185,7 @@
                                   (inspect-instruction entry)))
               (conflict-checkpoint attributes)]
              (setup-steps entry attributes)
+             (aspect-checkpoints entry setup-dependency attributes)
              (gate-steps entry gate-dependency attributes))))))
 
 (def spool-repo-repo-skeleton-workflow
@@ -170,6 +202,9 @@
 
 (def spool-repo-docs-workflow
   (aspect-workflow "spool-repo/docs"))
+
+(def spool-repo-ci-workflow
+  (aspect-workflow "spool-repo/ci"))
 
 (def skein-dir-workspace-workflow
   (aspect-workflow "skein-dir/workspace"))
@@ -271,6 +306,8 @@
    'ct.spools.dresser.workflows/spool-repo-quality-workflow
    :dresser/spool-repo.docs
    'ct.spools.dresser.workflows/spool-repo-docs-workflow
+   :dresser/spool-repo.ci
+   'ct.spools.dresser.workflows/spool-repo-ci-workflow
    :dresser/skein-dir.workspace
    'ct.spools.dresser.workflows/skein-dir-workspace-workflow
    :dresser/skein-dir.quality

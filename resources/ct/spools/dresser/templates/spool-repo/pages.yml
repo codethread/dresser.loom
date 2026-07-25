@@ -1,0 +1,55 @@
+# Publishes the mkdocs-material site to GitHub Pages on every push to main.
+#
+# HUMAN SETUP REQUIRED: this workflow deploys via the native GitHub Actions
+# Pages flow (configure-pages / upload-pages-artifact / deploy-pages), which
+# requires the repo's Pages build source to be "GitHub Actions" (it defaults to
+# "Deploy from a branch"). Until a repo admin changes it, the deploy job fails
+# on every push even though this workflow runs. One authenticated command sets
+# it, and this workflow cannot do it for itself: configure-pages with
+# `enablement: true` fails with "Resource not accessible by integration" when
+# the repo has no Pages site yet.
+#
+#   gh api -X POST repos/<owner>/<repo>/pages -f build_type=workflow
+#
+# Settings -> Pages -> "Build and deployment" is the equivalent without gh.
+# Once enabled, the site is served from https://<owner>.github.io/<repo>/.
+name: Deploy Docs
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v8.2.0
+      - run: make docs-site
+      - uses: actions/configure-pages@v4
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

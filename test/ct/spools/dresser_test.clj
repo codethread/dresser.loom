@@ -65,6 +65,8 @@
     "spool-repo/mkdocs-hooks.py"
     "spool-repo/mkdocs.yml"
     "spool-repo/generate-api-docs.clj"
+    "spool-repo/quality.yml"
+    "spool-repo/pages.yml"
     "skein-dir/deps.edn"
     "skein-dir/makefile"
     "skein-dir/agents.md"
@@ -76,7 +78,8 @@
     "spool-repo/test-main.clj"
     "spool-repo/readme"
     "spool-repo/mkdocs.yml"
-    "spool-repo/generate-api-docs.clj"})
+    "spool-repo/generate-api-docs.clj"
+    "spool-repo/quality.yml"})
 
 (defn- thrown-data [f]
   (try
@@ -160,6 +163,8 @@
    "spool-repo/mkdocs-hooks.py" "0dd1baf0db0b6227cf71c425a58608dbab6e13a49948ff3de189536e5aa69df6"
    "spool-repo/mkdocs.yml" "ed209733435b83ea5867c7c984134c2d45cefeb06603140a54482e65d208bf27"
    "spool-repo/generate-api-docs.clj" "4a6e6212eefb4a8b1293e3d71325a11824be521e900d786ccd9d29d22fb07d11"
+   "spool-repo/quality.yml" "98c2687e86f98693c8a50002b5a0beb87be9d59f54ebe044a91f6ad3a3185c56"
+   "spool-repo/pages.yml" "fc679d78c588d239c9f30620e6b538d3f9879d7dd4fe81e3798d5432bb8ac6ae"
    "skein-dir/deps.edn" "510249ea4b5005a42495aab90264e30f526f958e2ad07b02055ae230f228e5a9"
    "skein-dir/makefile" "913ec67cf6b6b1cd100bbf75abb812ce05087afbe9bc6f16298dd18303dd9418"
    "skein-dir/agents.md" "db629e70a4a7ef1c8dfb1767ce0e4bf9ef1d98f54c164cdc8175aa0c525b1fa4"
@@ -222,6 +227,10 @@
    "spool-repo/docs"
    {:setup [:write-docs-pipeline :link-docs-projection]
     :gates [:docs-files :docs-targets :docs-check]}
+   "spool-repo/ci"
+   {:setup [:write-workflows]
+    :checkpoints [:pages-source]
+    :gates [:workflow-files :workflow-targets]}
    "skein-dir/workspace"
    {:setup [:write-workspace] :gates [:workspace-files :init-header]}
    "skein-dir/quality"
@@ -236,6 +245,7 @@
           "spool-repo/agent-docs" 1
           "spool-repo/quality" 3
           "spool-repo/docs" 1
+          "spool-repo/ci" 1
           "skein-dir/workspace" 3
           "skein-dir/quality" 2
           "skein-dir/agent-docs" 1}
@@ -247,8 +257,10 @@
       (is (some? aspect-name))
       (is (integer? (:version entry)))
       (is (= (get expected-aspect-ids aspect-key)
-             {:setup (mapv :id (:setup entry))
-              :gates (mapv :id (:gates entry))}))
+             (cond-> {:setup (mapv :id (:setup entry))
+                      :gates (mapv :id (:gates entry))}
+               (:checkpoints entry)
+               (assoc :checkpoints (mapv :id (:checkpoints entry))))))
       (doseq [dep (:deps entry)]
         (is (contains? aspects/registry dep))
         (is (str/starts-with? dep (str flavour "/"))))
@@ -294,11 +306,19 @@
 (defn- expected-aspect-dependencies [entry]
   (let [setup-ids (mapv :id (:setup entry))
         setup-dependencies (map vector (cons :conflict setup-ids))
+        checkpoint-ids (mapv :id (:checkpoints entry))
+        checkpoint-dependencies (map vector
+                                     (cons (or (peek setup-ids) :conflict)
+                                           checkpoint-ids))
         gate-ids (mapv :id (:gates entry))
         gate-dependencies (map vector
-                               (cons (or (peek setup-ids) :conflict) gate-ids))]
+                               (cons (or (peek checkpoint-ids)
+                                         (peek setup-ids)
+                                         :conflict)
+                                     gate-ids))]
     (into {:inspect [] :conflict [:inspect]}
           (concat (map vector setup-ids setup-dependencies)
+                  (map vector checkpoint-ids checkpoint-dependencies)
                   (map vector gate-ids gate-dependencies)))))
 
 (defn- expected-verify-dependencies [gate-ids]
@@ -313,8 +333,10 @@
             setup-steps (:steps setup-description)
             verify-steps (:steps verify-description)
             setup-ids (mapv :id (:setup entry))
+            checkpoint-ids (mapv :id (:checkpoints entry))
             gate-ids (mapv :id (:gates entry))
-            expected-ids (into [:inspect :conflict] (concat setup-ids gate-ids))
+            expected-ids (into [:inspect :conflict]
+                               (concat setup-ids checkpoint-ids gate-ids))
             dependencies (expected-aspect-dependencies entry)]
         (is (= expected-ids (mapv :id setup-steps)))
         (is (= dependencies
@@ -345,6 +367,25 @@
     (is (= {"spec" "ct.spools.dresser.specs/abort-workflow-input"
             "doc" "Why convention convergence was aborted."}
            (:input-spec (choices "abort"))))))
+
+(deftest registry-checkpoints-render-between-setup-and-gates
+  (let [steps (:steps (aspect-description "spool-repo/ci" false))
+        checkpoint (first (filter #(= :pages-source (:id %)) steps))
+        choices (into {} (map (juxt :key identity)) (:choices checkpoint))]
+    (is (= "checkpoint" (:role checkpoint)))
+    (is (= [:write-workflows] (:depends-on checkpoint)))
+    (is (= [:pages-source] (:depends-on (first (filter #(= :workflow-files (:id %))
+                                                       steps)))))
+    (is (= #{"enabled" "deferred" "abort"} (set (keys choices))))
+    (is (nil? (:input-spec (choices "deferred"))))
+    (is (= {"spec" "ct.spools.dresser.specs/pages-enabled-input"
+            "doc" "The published site URL, e.g. https://codethread.github.io/kanban.spool/."}
+           (:input-spec (choices "enabled"))))
+    (is (= ":dresser/abort" (:next (choices "abort"))))
+    ;; A checkpoint answers for state no gate can read, so a verify-only run —
+    ;; which carries gates alone — must not ask the question again.
+    (is (not (contains? (set (map :id (:steps (aspect-description "spool-repo/ci" true))))
+                        :pages-source)))))
 
 (defn- compiled-step-map [definition params]
   (let [payload (workflow/compile definition params)]
@@ -467,7 +508,7 @@
           deref))
 
 (deftest dresser-workflows-declare-stable-resolvable-names
-  (is (= 11 (count dresser-workflows/workflow-definitions)))
+  (is (= 12 (count dresser-workflows/workflow-definitions)))
   (doseq [aspect-key (keys aspects/registry)]
     (is (contains? dresser-workflows/workflow-definitions
                    (dresser-workflows/registered-name aspect-key))
