@@ -11,8 +11,8 @@ a publication instruction.
   workflow registration, op registration) and
   `ct.spools.dresser.workflows/register-workflows!` (its imperative
   registration loop). Activation is `contribute`/`reconcile` via the module
-  lifecycle; the newly exported `ct.spools.dresser/module` datum is the
-  authored declaration source (ADR-003.P7 in skein-src's devflow record).
+  lifecycle; the exported `ct.spools.dresser/spool` var supplies the lifecycle
+  entry points.
 - Authorization: pre-`v1` clean break under TEN-000@1, directed by skein-src
   ADR-003.P5 (epic waq0l, feature kst0n) — retiring `install!` everywhere so
   the module lifecycle is the one activation path.

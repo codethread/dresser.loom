@@ -42,14 +42,16 @@
 (defn activate-module!
   "Activate a spool module on a bare test runtime from the JVM image.
 
-  Assocs `:load :image` (plus an optional `:after` edge) onto the spool's
-  exported base declaration and declares it under `key` via `runtime/module!`
-  (ADR-003.P7: tests pass the base datum; production carries `:spools` guards
-  instead). Throws with the full refresh result unless the module's outcome is
-  applied or unchanged, so a fixture failure names the refusal instead of
-  cascading into unrelated assertions. Returns the refresh result."
-  [rt key base-decl & {:keys [after]}]
-  (let [result (runtime/module! rt key (cond-> (assoc base-decl :load :image)
+  Validates the namespace's exported `spool` declaration, then declares its
+  `:ns` source target with `:load :image` (plus an optional `:after` edge) via
+  `runtime/module!`. Production carries `:spools` guards instead. Throws with
+  the full refresh result unless the module's outcome is applied or unchanged,
+  so a fixture failure names the refusal instead of cascading into unrelated
+  assertions. Returns the refresh result."
+  [rt key ns-sym entry-points & {:keys [after]}]
+  (spool/require-valid! ::spool/spool entry-points
+                        "Spool entry-point declaration is invalid")
+  (let [result (runtime/module! rt key (cond-> {:ns ns-sym :load :image}
                                          after (assoc :after after)))
         status (get-in result [:modules key :status])]
     (when-not (contains? #{:applied :unchanged} status)
@@ -60,7 +62,7 @@
 (defn activate-workflow!
   "Activate the workflow spool module on a bare test runtime."
   [rt]
-  (activate-module! rt :workflow workflow/module))
+  (activate-module! rt :workflow 'skein.spools.workflow workflow/spool))
 
 (defn activate-serial-shell!
   "Activate the real shell executor module with deterministic inline workers.
@@ -75,12 +77,13 @@
                      :close-fn #(.shutdown workers)})]
     (with-redefs-fn {(ns-resolve 'skein.spools.executors.shell 'new-state)
                      new-state}
-      #(activate-module! rt :shell shell-executor/module :after [:workflow]))))
+      #(activate-module! rt :shell 'skein.spools.executors.shell shell-executor/spool
+                         :after [:workflow]))))
 
 (defn activate-dresser!
   "Activate the dresser module ordered after the workflow module."
   [rt]
-  (activate-module! rt :dresser dresser/module :after [:workflow]))
+  (activate-module! rt :dresser 'ct.spools.dresser dresser/spool :after [:workflow]))
 
 (defn with-dresser-runtime
   "Run f in a disposable weaver world with dresser and either real or inert shell.
@@ -308,8 +311,7 @@
                  (when-not (str/starts-with? (:title step) "Inspect ")
                    (write-step-files! root (:title step)))
                  (when before-advance (before-advance step))
-                 (weaver/op! runtime 'dresser
-                             (conj base "--notes" "fixture driver completed step"))))
+                 (weaver/op! runtime 'dresser base)))
              (recur (inc driven)))))))))
 
 (defn drive-spool-repo!
@@ -330,8 +332,7 @@
               (do
                 (when-not (str/starts-with? (:title step) "Inspect ")
                   (write-spool-repo-step-files! root (:title step)))
-                (weaver/op! runtime 'dresser
-                            (conj base "--notes" "fixture driver completed step"))))
+                (weaver/op! runtime 'dresser base)))
             (recur (inc driven))))))))
 
 (defn latest-molecule-strands

@@ -47,7 +47,7 @@ under dependencies.
 It passes through the step-view vector owned by
 `skein.spools.workflow/ready` without reshaping it.
 `strand dresser advance <flavour> <root>` completes one ready agent step or
-checkpoint and accepts `--step`, `--notes`, `--choice`, and `--input`. Add
+checkpoint and accepts `--step`, `--choice`, and `--input`. Add
 `--verify` to either command to address the verify run. Verify runs contain only
 shell gates, so normally the shell executor advances them.
 
@@ -60,8 +60,8 @@ Stamp never uses a verify run or an older setup molecule as evidence.
 `start` resolves the target root, validates the flavour and selected aspects,
 and pours one setup workflow. Each aspect has an inspect step, a required human
 conflict checkpoint, zero or more setup steps, then its verification gates.
-Inspect completion notes record findings and the proposed keep/merge/replace
-decision for every conflicting file. The checkpoint choice is always explicit:
+Inspect findings and the proposed keep/merge/replace decision for every
+conflicting file inform the checkpoint choice, which is always explicit:
 
 - `clean`: inspection found nothing requiring a decision.
 - `apply-plan`: requires `decisions`, summarizing the per-file choices.

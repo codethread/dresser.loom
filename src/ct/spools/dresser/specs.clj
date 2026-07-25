@@ -122,10 +122,9 @@
 (s/def ::verify (s/nilable boolean?))
 (s/def ::choice non-blank-string?)
 (s/def ::input map?)
-(s/def ::notes string?)
 (s/def ::step non-blank-string?)
 (s/def ::advance-opts
-  (s/keys :opt-un [::choice ::input ::notes ::step]))
+  (s/keys :opt-un [::choice ::input ::step]))
 (s/def ::start-input
   (s/keys :req-un [::flavour ::root ::verify-only ::selection]))
 (s/def ::ready-input (s/keys :req-un [::flavour ::root ::verify]))
@@ -174,7 +173,7 @@
                       #(s/valid? ::root (:root %))
                       #(or (not (contains? % :verify)) (boolean? (:verify %)))
                       #(s/valid? ::advance-opts
-                                 (select-keys % [:choice :input :notes :step])))
+                                 (select-keys % [:choice :input :step])))
    ["stamp"] (s/and map?
                     #(s/valid? ::aspect-key (:aspect %))
                     #(s/valid? ::root (:root %)))})

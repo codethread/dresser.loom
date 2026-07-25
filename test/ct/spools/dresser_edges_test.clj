@@ -19,7 +19,7 @@
 (defn- advance-ready! [runtime flavour root & args]
   (let [step (first (apply op! runtime "next" flavour (str root) args))]
     (apply op! runtime "advance" flavour (str root)
-           (concat args ["--step" (:id step) "--notes" "edge fixture advanced step"]))))
+           (concat args ["--step" (:id step)]))))
 
 (defn- receipt-for [release fingerprint aspect-key]
   {:dresser/release release
@@ -140,7 +140,7 @@
           (let [setup (first (op! runtime "next" "spool-repo" (str root)))]
             (is (= "Write AGENTS.md" (:title setup)))
             (op! runtime "advance" "spool-repo" (str root)
-                 "--step" (:id setup) "--notes" "kept customized passing file"))
+                 "--step" (:id setup)))
           (fixtures/assert-done! (fixtures/wait-for-attention! runtime
                                                                (target/run-id "spool-repo" root)))
           (let [choice (some #(when (= :choice (:type %)) %)
@@ -222,8 +222,7 @@
                                (str/starts-with? (:title %) "Write "))
                           strands))
             (let [result (op! runtime "advance" "spool-repo" (str root)
-                              "--verify" "--step" (:id (first ready))
-                              "--notes" "verify edge manually advanced")]
+                              "--verify" "--step" (:id (first ready)))]
               (is (true? (:done result)))
               (is (empty? (op! runtime "next" "spool-repo" (str root)
                                "--verify"))))))))))

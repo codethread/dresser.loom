@@ -59,33 +59,27 @@ For local dresser development, add a gitignored `spools.local.edn` overlay:
 
 Declare the workflow engine, the classpath shell executor, and dresser as
 modules in the workspace's `init.clj`, ordered by `:after` edges. Each
-declaration mirrors the spool's exported base datum (`skein.spools.workflow/module`,
-`skein.spools.executors.shell/module`, `ct.spools.dresser/module`) with the
-workspace's `:spools` guards added; startup config spells the maps out
-literally because it runs before spool sources are loadable:
+namespace exports a `spool` entry-point var (`skein.spools.workflow/spool`,
+`skein.spools.executors.shell/spool`, `ct.spools.dresser/spool`); the refresh
+coordinator resolves its entry points from the declared source target. Startup
+config therefore declares only the source and world policy:
 
 ```clojure
 (runtime/module! runtime :workflow
-                 {:ns 'skein.spools.workflow
+                  {:ns 'skein.spools.workflow
                   :spools ['skein.spools/workflow]
-                  :contribute 'skein.spools.workflow/contribute
-                  :reconcile 'skein.spools.workflow/reconcile
                   :required? true})
 
 (runtime/module! runtime :shell-executor
                  {:ns 'skein.spools.executors.shell
                   :spools ['skein.spools/workflow]
                   :after [:workflow]
-                  :contribute 'skein.spools.executors.shell/contribute
-                  :reconcile 'skein.spools.executors.shell/reconcile
                   :required? true})
 
 (runtime/module! runtime :dresser
                  {:ns 'ct.spools.dresser
                   :spools ['codethread/dresser]
                   :after [:workflow :shell-executor]
-                  :contribute 'ct.spools.dresser/contribute
-                  :reconcile 'ct.spools.dresser/reconcile
                   :required? true})
 ```
 
@@ -117,7 +111,7 @@ through the executor and do not need `advance`:
 ```sh
 strand dresser next spool-repo /path/to/target
 strand dresser advance spool-repo /path/to/target \
-  --step <ready-strand-id> --notes "completed the instructed work"
+  --step <ready-strand-id>
 strand dresser advance spool-repo /path/to/target \
   --step <checkpoint-strand-id> --choice clean
 ```

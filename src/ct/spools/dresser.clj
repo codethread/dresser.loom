@@ -188,7 +188,7 @@
                         {:flavour flavour :root root :verify verify? :opts opts}
                         "Dresser lifecycle advance input has an invalid shape")
   (spool/reject-unknown-keys! "dresser advance"
-                              #{:choice :input :notes :step}
+                              #{:choice :input :step}
                               opts)
   ;; The engine publishes a caller-supplied :by, but dresser deliberately pins it
   ;; and exposes no --by. `advance!` acts on any ready step, gates included, so a
@@ -377,7 +377,6 @@
                                 :doc "Address the verify-only run."}
                        :choice {:type :string}
                        :input {:type :map}
-                       :notes {:type :string}
                        :step {:type :string}}
                :positionals [{:name :flavour :required? true}
                              {:name :root :required? true}]
@@ -413,7 +412,6 @@
                                 (cond-> {}
                                   (contains? args :choice) (assoc :choice (:choice args))
                                   (contains? args :input) (assoc :input (keywordize-input (:input args)))
-                                  (contains? args :notes) (assoc :notes (:notes args))
                                   (contains? args :step) (assoc :step (:step args))))
           ["stamp"] (stamp! (:aspect args) (:root args))))
       (spool/fail! "Unsupported dresser subcommand"
@@ -490,13 +488,13 @@
                     :module/key (:module/key ctx)
                     :reconciler 'ct.spools.dresser/reconcile}))))
 
-(def module
-  "Base module declaration datum for the dresser spool (ADR-003.P7).
+(def spool
+  "Entry-point declaration for the dresser spool (PROP-Dsp-001 `def spool`
+  convention).
 
-  The authored `:ns`/`:contribute`/`:reconcile` triple every consumer starts
-  from: a consuming world assocs its `:spools` guards and an `:after` edge on
-  its workflow module's key onto it, and bare-test fixtures assoc
-  `:load :image`. Every variant is `runtime/module!` input."
-  {:ns 'ct.spools.dresser
-   :contribute 'ct.spools.dresser/contribute
-   :reconcile 'ct.spools.dresser/reconcile})
+  The refresh coordinator resolves `:contribute`/`:reconcile` from this public
+  var at every module evaluation, so a consumer declares only a source target
+  and world policy and never mirrors the pair. Unqualified symbols resolve
+  against this namespace; fn values are rejected (ADR-002.O1)."
+  {:contribute 'contribute
+   :reconcile 'reconcile})

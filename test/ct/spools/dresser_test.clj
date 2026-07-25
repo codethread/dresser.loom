@@ -25,13 +25,12 @@
   (:import (java.nio.file Files Path)
            (java.nio.file.attribute FileAttribute)))
 
-(deftest dresser-exports-the-module-lifecycle-surface
+(deftest dresser-exports-the-spool-lifecycle-surface
   (is (ifn? dresser/contribute))
   (is (ifn? dresser/reconcile))
-  (is (= {:ns 'ct.spools.dresser
-          :contribute 'ct.spools.dresser/contribute
-          :reconcile 'ct.spools.dresser/reconcile}
-         dresser/module)))
+  (is (= {:contribute 'contribute
+          :reconcile 'reconcile}
+         dresser/spool)))
 
 (defn- with-runtime [f]
   (t/with-weaver-world [ctx {:storage :sqlite-memory}]
@@ -792,8 +791,7 @@
                        :active-run))))
             (weaver/op! runtime 'dresser
                         ["advance" "skein-dir" (str root)
-                         "--step" (:id (first setup-ready))
-                         "--notes" "inspected"])
+                         "--step" (:id (first setup-ready))])
             (let [checkpoint (first (weaver/op! runtime 'dresser
                                                 ["next" "skein-dir" (str root)]))
                   after-choice (weaver/op! runtime 'dresser
