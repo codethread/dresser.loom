@@ -66,7 +66,7 @@ config therefore declares only the source and world policy:
 
 ```clojure
 (runtime/module! runtime :workflow
-                  {:ns 'skein.spools.workflow
+                 {:ns 'skein.spools.workflow
                   :spools ['skein.spools/workflow]
                   :required? true})
 
