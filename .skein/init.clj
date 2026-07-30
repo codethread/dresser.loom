@@ -4,33 +4,28 @@
 (def runtime (current/runtime))
 
 ;; Batteries is approved as a shipped source-root spool; the :spools guard
-;; keeps source loading behind that visible spools.edn approval.
+;; keeps source loading behind that visible spools.edn approval. Its source
+;; collects the operation and lifecycle forms that own its contribution.
 (runtime/module! runtime :skein/spools-batteries
   {:ns 'skein.spools.batteries
-   :spools ['skein.spools/batteries]
-   :contribute 'skein.spools.batteries/contribute
-   :reconcile 'skein.spools.batteries/reconcile})
+   :spools ['skein.spools/batteries]})
 
 ;; Board peering (kanban.md "Peering"): guild first, kanban second, peering
-;; last — install-peering! fails loudly unless both predecessors reconciled.
+;; last. Each source collects its contribution and named lifecycle effects;
+;; declarations here name only source targets and world policy.
 (runtime/module! runtime :guild
   {:ns 'skein.spools.guild
    :spools ['skein.spools/guild]
-   :contribute 'skein.spools.guild/contribute
-   :reconcile 'skein.spools.guild/reconcile
    :required? true})
 
 (runtime/module! runtime :kanban
   {:ns 'ct.spools.kanban
    :spools ['codethread/kanban]
    :after [:guild]
-   :contribute 'ct.spools.kanban/contribute
-   :reconcile 'ct.spools.kanban/reconcile
    :required? true})
 
 (runtime/module! runtime :kanban/peering
-  {:file "peering_adapter.clj"
+  {:ns 'ct.spools.kanban.peering
    :spools ['codethread/kanban 'skein.spools/guild]
    :after [:guild :kanban]
-   :reconcile 'peering-adapter/reconcile
    :required? true})
