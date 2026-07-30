@@ -5,9 +5,10 @@
             [skein.api.current.alpha :as current]
             [skein.api.format.alpha :as fmt]
             [skein.api.graph.alpha :as graph]
+            [skein.api.lifecycle.alpha :as lifecycle]
+            [skein.api.skein.alpha :as skein]
             [skein.api.spool.alpha :as spool]
             [skein.api.vocab.alpha :as vocab]
-            [skein.api.weaver.internal.op-entry :as op-entry]
             [ct.spools.dresser.aspects :as aspects]
             [ct.spools.dresser.receipt :as receipt]
             [ct.spools.dresser.specs :as specs]
@@ -153,7 +154,7 @@
   start and records the definition name it resolved."
   [flavour selected]
   (if (= selected (aspects/flavour-aspects flavour))
-    (keyword "dresser" flavour)
+    (keyword flavour)
     (dresser-workflows/flavour-workflow flavour selected)))
 
 (defn- start-run! [flavour root verify-only selection]
@@ -400,8 +401,13 @@
                            {:name :root :required? true}]
              :hook-class :mutating :deadline-class :standard}}})
 
-(defn dresser-op
-  "Dispatch parsed dresser subcommands."
+(def dresser-op-options
+  "Registration metadata for the `dresser` op's authoring form."
+  {:arg-spec dresser-arg-spec})
+
+(skein/defop dresser
+  "Inspect and converge repository conventions."
+  dresser-op-options
   [request]
   (spool/require-valid! ::specs/op-input request
                         "Dresser operation input has an invalid shape")
@@ -441,33 +447,6 @@
           "dresser/gate-id"]
    :doc "Dresser target and aspect identity attributes on workflow roots and steps."})
 
-(def ^:private dresser-op-options
-  "Registration metadata for the `dresser` op's contribution entry."
-  {:doc "Inspect and converge repository conventions."
-   :arg-spec dresser-arg-spec})
-
-(defn contribute
-  "Publish dresser's complete declarative contribution.
-
-  Two owner-complete partitions: the `dresser` CLI op, assembled into the
-  canonical op-entry shape exactly as `register-op!` would, and the static
-  workflow definitions as entries in the workflow spool's registered definition
-  kind (DELTA-OlrDrt-001.CC4). The module refresh kernel owns replacement and
-  deletion, so a refresh that omits this module retracts the op and every
-  definition by omission. Definitions are symbols, not resolved Vars, which
-  preserves live re-pointing: an in-flight run resolves the current symbol at
-  its next transition while poured molecules retain their materialized
-  history. Callers order the module `:after` their world's workflow module
-  key so the definition kind is declared before this contribution publishes.
-
-  Dresser cannot author these with `defworkflow`: a module either collects
-  authoring forms or resolves a `:contribute` function, never both
-  (SPEC-004.C46), and dresser's op partition needs the function."
-  [_ctx]
-  {workflow/definition-kind dresser-workflows/workflow-definitions
-   :ops {"dresser" (op-entry/assemble 'dresser dresser-op-options
-                                      'ct.spools.dresser/dresser-op)}})
-
 (defn- require-shell-executor!
   "Fail loudly unless a `:shell` workflow executor is registered.
 
@@ -483,36 +462,13 @@
                    {:prerequisite :shell
                     :executors (set (keys executors))}))))
 
-(defn reconcile
-  "Reconcile dresser's non-declarative resources per the module contract.
+(defn seed-dresser-vocabulary!
+  "Assert Dresser's executor prerequisite and seed its process-lifetime vocab."
+  [{:keys [runtime]}]
+  (require-shell-executor!)
+  (vocab/declare! runtime dresser-vocab)
+  {:seeded :dresser})
 
-  An applied contribution asserts the shell-executor prerequisite and seeds
-  the `dresser/*` vocabulary (a domain registration effect, reconcile-owned
-  like the workflow spool's own vocabulary). The removal branch is
-  deliberately effect-free: vocabulary declarations are process-lifetime
-  seeds with no retraction API (SPEC-004.C46b), and the op and definitions
-  are already gone by kernel omission. Any other status is a direct-call
-  error and fails loudly."
-  [{:keys [runtime] :as ctx}]
-  (let [status (get-in ctx [:module/contribution :status])]
-    (case status
-      :applied (do (require-shell-executor!)
-                   (vocab/declare! runtime dresser-vocab)
-                   {:reconciled :applied})
-      :removed {:reconciled :removed}
-      (spool/fail! "Unsupported module contribution status"
-                   {:status status
-                    :allowed #{:applied :removed}
-                    :module/key (:module/key ctx)
-                    :reconciler 'ct.spools.dresser/reconcile}))))
-
-(def spool
-  "Entry-point declaration for the dresser spool (PROP-Dsp-001 `def spool`
-  convention).
-
-  The refresh coordinator resolves `:contribute`/`:reconcile` from this public
-  var at every module evaluation, so a consumer declares only a source target
-  and world policy and never mirrors the pair. Unqualified symbols resolve
-  against this namespace; fn values are rejected (ADR-002.O1)."
-  {:contribute 'contribute
-   :reconcile 'reconcile})
+(lifecycle/defseed dresser-vocabulary
+  "Seed Dresser's process-lifetime vocabulary after its forms publish."
+  {:apply 'ct.spools.dresser/seed-dresser-vocabulary!})

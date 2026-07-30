@@ -28,15 +28,14 @@
            (java.nio.file.attribute FileAttribute)
            (java.security MessageDigest)))
 
-(deftest dresser-exports-the-spool-lifecycle-surface
-  (is (ifn? dresser/contribute))
-  (is (ifn? dresser/reconcile))
-  (is (= {:contribute 'contribute
-          :reconcile 'reconcile}
-         dresser/spool)))
+(deftest dresser-exports-form-authored-lifecycle-surface
+  (is (ifn? (ns-resolve 'ct.spools.dresser 'dresser-op)))
+  (is (ifn? dresser/seed-dresser-vocabulary!))
+  (is (nil? (ns-resolve 'ct.spools.dresser 'contribute)))
+  (is (nil? (ns-resolve 'ct.spools.dresser 'reconcile))))
 
 (defn- with-runtime [f]
-  (t/with-weaver-world [ctx {:storage :sqlite-memory}]
+  (t/with-weaver-world [ctx (fixtures/world-options)]
     (weaver-runtime/with-runtime-binding
       (:runtime ctx)
       #(do
@@ -361,7 +360,7 @@
     (is (= {"spec" "ct.spools.dresser.specs/conflict-decisions-input"
             "doc" "Summary of per-file keep/merge/replace decisions."}
            (:input-spec (choices "apply-plan"))))
-    (is (= ":dresser/abort" (:next (choices "abort"))))
+    (is (= ":abort" (:next (choices "abort"))))
     ;; The abort choice and the workflow it routes to answer to one spec, so a
     ;; reason the checkpoint accepts is a reason the continuation can start on.
     (is (= {"spec" "ct.spools.dresser.specs/abort-workflow-input"
@@ -381,7 +380,7 @@
     (is (= {"spec" "ct.spools.dresser.specs/pages-enabled-input"
             "doc" "The published site URL, e.g. https://codethread.github.io/kanban.spool/."}
            (:input-spec (choices "enabled"))))
-    (is (= ":dresser/abort" (:next (choices "abort"))))
+    (is (= ":abort" (:next (choices "abort"))))
     ;; A checkpoint answers for state no gate can read, so a verify-only run —
     ;; which carries gates alone — must not ask the question again.
     (is (not (contains? (set (map :id (:steps (aspect-description "spool-repo/ci" true))))
@@ -435,7 +434,7 @@
     (fn [runtime _]
       (fixtures/activate-dresser! runtime)
       (let [params {:root "/tmp/x"}
-            full (workflow/describe :dresser/spool-repo params)
+            full (workflow/describe :spool-repo params)
             subset-definition (dresser-workflows/flavour-workflow
                                "spool-repo" ["spool-repo/skein-workspace"])
             subset (workflow/describe subset-definition params)
@@ -523,9 +522,9 @@
 (deftest dresser-workflow-entrypoints-match-how-each-name-is-reached
   ;; Umbrellas begin runs, the abort stage is only ever routed to, and an aspect
   ;; is only ever expanded inline by its umbrella.
-  (is (= #{:start} (:entrypoints (registered-definition :dresser/spool-repo))))
-  (is (= #{:start} (:entrypoints (registered-definition :dresser/skein-dir))))
-  (is (= #{:continue} (:entrypoints (registered-definition :dresser/abort))))
+  (is (= #{:start} (:entrypoints (registered-definition :spool-repo))))
+  (is (= #{:start} (:entrypoints (registered-definition :skein-dir))))
+  (is (= #{:continue} (:entrypoints (registered-definition :abort))))
   (doseq [aspect-key (keys aspects/registry)]
     (is (= #{:call}
            (:entrypoints (registered-definition
@@ -713,7 +712,8 @@
 
 (deftest unsupported-dresser-subcommand-fails-with-alternatives
   (let [exception (thrown-exception
-                   #(dresser/dresser-op {:op/args {:subcommand ["explode"]}}))
+                   #((ns-resolve 'ct.spools.dresser 'dresser-op)
+                     {:op/args {:subcommand ["explode"]}}))
         data (ex-data exception)]
     (is (= "Unsupported dresser subcommand" (ex-message exception)))
     (is (= ["explode"] (:subcommand data)))
@@ -758,35 +758,22 @@
         (is (= (set (keys dresser-workflows/workflow-definitions))
                (set (keys (workflow/workflows)))))))))
 
-(deftest contribute-publishes-owner-complete-partitions
-  (let [contribution (dresser/contribute {})
-        entry (get-in contribution [:ops "dresser"])]
-    (is (= #{workflow/definition-kind :ops} (set (keys contribution))))
-    (is (= dresser-workflows/workflow-definitions
-           (get contribution workflow/definition-kind)))
-    (is (= "dresser" (:name entry)))
-    (is (= 'ct.spools.dresser/dresser-op (:fn entry)))
-    (is (= 'ct.spools.dresser (:provenance entry)))
-    (is (= #{"about" "aspects" "template" "plan" "start" "verify"
-             "next" "advance" "stamp"}
-           (set (keys (get-in entry [:arg-spec :subcommands])))))))
+(deftest form-authored-modules-publish-owner-complete-partitions
+  (with-runtime
+    (fn [runtime _]
+      (fixtures/activate-dresser! runtime)
+      (is (= (set (keys dresser-workflows/workflow-definitions))
+             (set (keys (workflow/workflows)))))
+      (is (= 'ct.spools.dresser/dresser-op
+             (:fn (weaver/resolve-op runtime 'dresser)))))))
 
 (defn- with-runtime-without-executor [f]
-  (t/with-weaver-world [ctx {:storage :sqlite-memory}]
+  (t/with-weaver-world [ctx (fixtures/world-options)]
     (weaver-runtime/with-runtime-binding
       (:runtime ctx)
       #(do
          (fixtures/activate-workflow! (:runtime ctx))
          (f (:runtime ctx))))))
-
-(deftest reconcile-refuses-an-applied-contribution-without-a-shell-executor
-  (with-runtime-without-executor
-    (fn [rt]
-      (let [data (thrown-data
-                  #(dresser/reconcile {:runtime rt
-                                       :module/contribution {:status :applied}}))]
-        (is (= :shell (:prerequisite data)))
-        (is (set? (:executors data)))))))
 
 (deftest module-activation-fails-loudly-without-a-shell-executor
   (with-runtime-without-executor
@@ -794,37 +781,10 @@
       (let [data (thrown-data #(fixtures/activate-dresser! rt))]
         (is (= :dresser (:module/key data)))))))
 
-(deftest publication-refuses-a-partition-missing-a-name-its-definitions-reach
-  ;; What naming aspects and the abort stage by registered keyword buys: an
-  ;; owner partition that drops a name its own definitions route to or call is
-  ;; refused before it goes live, instead of failing at the pour.
-  (with-runtime-without-executor
-    (fn [rt]
-      (workflow/register-executor! :shell (constantly nil))
-      (doseq [dropped [:dresser/abort :dresser/spool-repo.quality]]
-        (with-redefs [dresser-workflows/workflow-definitions
-                      (dissoc dresser-workflows/workflow-definitions dropped)]
-          (let [data (thrown-data #(fixtures/activate-dresser! rt))
-                conflict (get-in data [:result :conflicts 0 :data])]
-            (is (= :dresser (:module/key data)) (str dropped))
-            (is (= :refused (get-in data [:result :status])) (str dropped))
-            (is (= :workflow/reference-unregistered (:reason conflict)) (str dropped))
-            (is (= dropped (:target conflict)) (str dropped))))))))
-
-(deftest reconcile-refuses-an-unsupported-contribution-status
-  (let [data (thrown-data
-              #(dresser/reconcile {:runtime nil
-                                   :module/key :dresser
-                                   :module/contribution {:status :bogus}}))]
-    (is (= :bogus (:status data)))
-    (is (= #{:applied :removed} (:allowed data)))
-    (is (= 'ct.spools.dresser/reconcile (:reconciler data)))))
-
 (deftest module-removal-by-omission-retracts-definitions-and-op
   ;; The deletion-by-omission proof: a full refresh re-collects from startup
-  ;; files, where this imperative test declaration does not appear, so the
-  ;; kernel removes the module, runs reconcile's :removed branch, and retracts
-  ;; the op and every workflow definition without dresser code participating.
+  ;; files, where these test declarations do not appear, so the kernel retracts
+  ;; each form-authored partition without a callback participating.
   (fixtures/with-temp-dir [parent]
     (let [root (fixtures/git-init-root! parent "omission")]
       (with-runtime-without-executor
@@ -837,8 +797,9 @@
           (is (= (set (keys dresser-workflows/workflow-definitions))
                  (set (keys (workflow/workflows)))))
           (let [result (runtime/refresh! runtime)]
-            (is (= :removed (get-in result [:modules :dresser :status]))))
-          (is (empty? (filter #(= "dresser" (namespace %))
+            (is (= :removed (get-in result [:modules :dresser :status])))
+            (is (= :removed (get-in result [:modules :dresser-workflows :status]))))
+          (is (empty? (filter #(contains? (set (keys dresser-workflows/workflow-definitions)) %)
                               (keys (workflow/workflows)))))
           (is (= 'dresser (:operation (thrown-data
                                        #(weaver/resolve-op runtime 'dresser))))))))))
@@ -939,7 +900,7 @@
                            [:aspects "spool-repo/removed"])))))))))
 
 (defn- with-runtime-without-shell [f]
-  (t/with-weaver-world [ctx {:storage :sqlite-memory}]
+  (t/with-weaver-world [ctx (fixtures/world-options)]
     (weaver-runtime/with-runtime-binding
       (:runtime ctx)
       #(do

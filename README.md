@@ -61,12 +61,11 @@ For local dresser development, add a gitignored `spools.local.edn` overlay:
 
 ## Activation
 
-Declare the workflow engine, the classpath shell executor, and dresser as
-modules in the workspace's `init.clj`, ordered by `:after` edges. Each
-namespace exports a `spool` entry-point var (`skein.spools.workflow/spool`,
-`skein.spools.executors.shell/spool`, `ct.spools.dresser/spool`); the refresh
-coordinator resolves its entry points from the declared source target. Startup
-config therefore declares only the source and world policy:
+Declare the workflow engine, the classpath shell executor, Dresser's workflow
+definitions, and its CLI/vocabulary module in the workspace's `init.clj`,
+ordered by `:after` edges. These are form-authored modules: `defworkflow`,
+`defop`, and `defseed` collect their declarations from the declared source
+target. Startup config therefore declares only the source and world policy:
 
 ```clojure
 (runtime/module! runtime :workflow
@@ -80,22 +79,27 @@ config therefore declares only the source and world policy:
                   :after [:workflow]
                   :required? true})
 
+(runtime/module! runtime :dresser-workflows
+                 {:ns 'dresser
+                  :spools ['codethread/dresser]
+                  :after [:workflow]
+                  :required? true})
+
 (runtime/module! runtime :dresser
                  {:ns 'ct.spools.dresser
                   :spools ['codethread/dresser]
-                  :after [:workflow :shell-executor]
+                  :after [:workflow :shell-executor :dresser-workflows]
                   :required? true})
 ```
 
-Dresser's contribution publishes its static workflow definitions into the
-workflow spool's definition kind and its `dresser` op; its reconcile seeds the
-`dresser/*` vocabulary and refuses activation when no `:shell` executor is
-registered. A refresh that omits the dresser module retracts the op and every
-definition by omission.
+Dresser's workflow module publishes its static definitions, while its CLI
+module publishes the `dresser` op and seeds the `dresser/*` vocabulary. The
+seed refuses activation when no `:shell` executor is registered. Refreshing a
+module without its forms retracts that module's entries by omission.
 
-The published names are `:dresser/<flavour>` for the two umbrellas (entrypoint
-`:start`), `:dresser/<flavour>.<aspect>` for each registry aspect (entrypoint
-`:call`, expanded inline by its umbrella), and `:dresser/abort` (entrypoint
+The published names are `:<flavour>` for the two umbrellas (entrypoint
+`:start`), `:<flavour>.<aspect>` for each registry aspect (entrypoint
+`:call`, expanded inline by its umbrella), and `:abort` (entrypoint
 `:continue`, routed to by the conflict checkpoint). Each is a plain definition
 value a Var holds, so `strand workflow show <name>` answers what a name means
 without running anything. Publication refuses a partition whose definitions

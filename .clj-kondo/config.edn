@@ -1,5 +1,17 @@
 {:lint-as
- {skein.test.alpha/with-weaver-world clojure.core/let}
+ {skein.test.alpha/with-weaver-world clojure.core/let
+  skein.api.skein.alpha/defop clojure.core/defn
+  skein.api.lifecycle.alpha/defseed clojure.core/def}
+ :linters
+ {:unresolved-var
+  {:exclude [skein.spools.workflow/defworkflow
+             skein.spools.workflow/static-definition
+             dresser/dresser-op]}
+  :unresolved-symbol
+  {:exclude [spool-repo skein-dir abort
+             spool-repo.repo-skeleton spool-repo.skein-workspace
+             spool-repo.agent-docs spool-repo.quality spool-repo.docs spool-repo.ci
+             skein-dir.workspace skein-dir.quality skein-dir.agent-docs]}}
  :hooks
  {:analyze-call
   {ct.spools.dresser-test/with-temp-dir hooks.dresser/with-temp-dir

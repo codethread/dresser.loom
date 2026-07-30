@@ -20,4 +20,9 @@
  ;; audited as load-bearing (narrowing to Exception would silently drop Error handling);
  ;; splint itself ships this rule `:safe false`, calling out mission-critical processes.
  ;; New lazy catches are caught by change review, not this rule. Adjudicated off.
- lint/catch-throwable {:enabled false}}
+ lint/catch-throwable {:enabled false}
+
+ ;; `workflow/defworkflow` derives public names from the declaration namespace.
+ ;; Dresser intentionally uses the one-segment `dresser` namespace so those
+ ;; names remain concise (`:spool-repo`, `:abort`, and aspect names).
+ naming/single-segment-namespace {:enabled false}}

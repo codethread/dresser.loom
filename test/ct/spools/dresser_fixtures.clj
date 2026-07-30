@@ -7,6 +7,7 @@
             [clojure.string :as str]
             [clojure.test :refer [is]]
             [skein.api.graph.alpha :as graph]
+            [skein.api.current.alpha :as current]
             [skein.api.runtime.alpha :as runtime]
             [skein.api.spool.alpha :as spool]
             [skein.api.weaver.alpha :as weaver]
@@ -20,39 +21,30 @@
             [skein.test.alpha :as t])
   (:import (java.nio.file Files Path)
            (java.nio.file.attribute FileAttribute)
-           (java.time LocalDate)
-           (java.util.concurrent AbstractExecutorService)))
+           (java.time LocalDate)))
 
 (def ^:private max-driver-steps 64)
-(def ^:private attention-timeout-ms 5000)
+(def ^:private attention-timeout-ms 30000)
 
-(defn- direct-executor []
-  (let [shutdown? (atom false)]
-    (proxy [AbstractExecutorService] []
-      (execute [command]
-        (when @shutdown?
-          (throw (java.util.concurrent.RejectedExecutionException.)))
-        (.run ^Runnable command))
-      (shutdown [] (reset! shutdown? true))
-      (shutdownNow [] (reset! shutdown? true) [])
-      (isShutdown [] @shutdown?)
-      (isTerminated [] @shutdown?)
-      (awaitTermination [_timeout _unit] true))))
+(defn world-options
+  "Return disposable-world options that approve this checkout as a spool root."
+  []
+  {:storage :sqlite-memory
+   :spools-edn {:spools {'codethread/dresser
+                         {:local/root (.getCanonicalPath (io/file "."))}
+                         'skein.spools/workflow
+                         {:local/root (.getCanonicalPath (io/file "../skein-src/spools/workflow"))}}}})
 
 (defn activate-module!
-  "Activate a spool module on a bare test runtime from the JVM image.
-
-  Validates the namespace's exported `spool` declaration, then declares its
-  `:ns` source target with `:load :image` (plus an optional `:after` edge) via
-  `runtime/module!`. Production carries `:spools` guards instead. Throws with
-  the full refresh result unless the module's outcome is applied or unchanged,
-  so a fixture failure names the refusal instead of cascading into unrelated
+  "Activate a form-authored spool module on a bare test runtime from the JVM
+  source target. Production carries `:spools` guards instead. Throws with the full
+  refresh result unless the module's outcome is applied or unchanged, so a
+  fixture failure names the refusal instead of cascading into unrelated
   assertions. Returns the refresh result."
-  [rt key ns-sym entry-points & {:keys [after]}]
-  (spool/require-valid! ::spool/spool entry-points
-                        "Spool entry-point declaration is invalid")
-  (let [result (runtime/module! rt key (cond-> {:ns ns-sym :load :image}
-                                         after (assoc :after after)))
+  [rt key ns-sym & {:keys [after spools]}]
+  (let [result (runtime/module! rt key (cond-> {:ns ns-sym}
+                                         after (assoc :after after)
+                                         spools (assoc :spools spools)))
         status (get-in result [:modules key :status])]
     (when-not (contains? #{:applied :unchanged} status)
       (throw (ex-info "Spool module activation failed"
@@ -62,28 +54,30 @@
 (defn activate-workflow!
   "Activate the workflow spool module on a bare test runtime."
   [rt]
-  (activate-module! rt :workflow 'skein.spools.workflow workflow/spool))
+  (activate-module! rt :workflow 'skein.spools.workflow
+                    :spools ['skein.spools/workflow]))
 
 (defn activate-serial-shell!
-  "Activate the real shell executor module with deterministic inline workers.
-
-  The redef window covers the module refresh, whose reconcile materializes
-  the runtime-owned worker pool through the redefined state builder."
+  "Activate the real shell executor module."
   [rt]
-  (let [workers (direct-executor)
-        new-state (fn []
-                    {:scan-monitor (Object.)
-                     :worker-executor workers
-                     :close-fn #(.shutdown workers)})]
-    (with-redefs-fn {(ns-resolve 'skein.spools.executors.shell 'new-state)
-                     new-state}
-      #(activate-module! rt :shell 'skein.spools.executors.shell shell-executor/spool
-                         :after [:workflow]))))
+  (activate-module! rt :shell 'skein.spools.executors.shell
+                    :after [:workflow]
+                    :spools ['skein.spools/workflow]))
+
+(defn activate-dresser-workflows!
+  "Activate Dresser's public workflow-definition module."
+  [rt]
+  (activate-module! rt :dresser-workflows 'dresser
+                    :after [:workflow]
+                    :spools ['codethread/dresser]))
 
 (defn activate-dresser!
-  "Activate the dresser module ordered after the workflow module."
+  "Activate Dresser's CLI and vocabulary module after its definitions."
   [rt]
-  (activate-module! rt :dresser 'ct.spools.dresser dresser/spool :after [:workflow]))
+  (activate-dresser-workflows! rt)
+  (activate-module! rt :dresser 'ct.spools.dresser
+                    :after [:workflow :dresser-workflows]
+                    :spools ['codethread/dresser]))
 
 (defn with-dresser-runtime
   "Run f in a disposable weaver world with dresser and either real or inert shell.
@@ -92,7 +86,7 @@
   ([f]
    (with-dresser-runtime {:real-shell? true} f))
   ([{:keys [real-shell?] :or {real-shell? true}} f]
-   (t/with-weaver-world [ctx {:storage :sqlite-memory}]
+   (t/with-weaver-world [ctx (world-options)]
      (weaver-runtime/with-runtime-binding
        (:runtime ctx)
        #(let [rt (:runtime ctx)]
@@ -322,7 +316,10 @@
    (runtime/clock runtime)
    {:timeout-ms attention-timeout-ms
     :poll-ms 25
-    :check #(attention runtime run-id)
+    :check #(do
+              (current/with-runtime runtime
+                ((ns-resolve 'skein.spools.executors.shell 'scan!)))
+              (attention runtime run-id))
     :pred->result identity
     :on-timeout (fn [_]
                   (throw (ex-info "Timed out waiting for dresser run"

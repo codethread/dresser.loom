@@ -39,7 +39,7 @@
          #(keyword? (:key %))
          #(non-blank-string? (:label %))
          #(non-blank-string? (:description %))
-         #(or (not (contains? % :next)) (qualified-keyword? (:next %)))
+         #(or (not (contains? % :next)) (keyword? (:next %)))
          #(or (not (contains? % :input))
               (and (map? (:input %))
                    (qualified-keyword? (:spec (:input %)))

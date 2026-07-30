@@ -99,7 +99,7 @@ verify-only run. `spool-repo/ci` declares one, `pages-source`:
   on push to `main` until an admin enables Pages.
 - `abort`: requires `reason` and routes to the abort stage.
 
-A run without `--aspects` starts the registered umbrella `:dresser/<flavour>`
+A run without `--aspects` starts the registered umbrella `:<flavour>`
 by name. A selection is narrower than any published definition — a `call` takes
 no condition, so which aspects a definition covers is fixed where it is
 authored — so dresser builds the narrower umbrella and pours the value. Both
@@ -160,8 +160,7 @@ application date into the receipt.
 
 ## Attributes
 
-The dresser attribute namespace is declared by the module's reconcile on an
-applied contribution.
+The dresser attribute namespace is declared by the module's lifecycle seed.
 
 | Attribute | Present on | Meaning |
 |---|---|---|

@@ -6,9 +6,9 @@
   param-taking constructors, and each `def` below binds one such value. The
   generator stays a function because the registry — not this file — decides how
   many definitions exist; what it returns is the value the Var holds, which is
-  what lets `workflow-definitions` publish resolvable symbols under the engine's
-  definition kind and lets a worker read what a registered name means without
-  executing anything.
+  what lets the form-authored `dresser` module publish resolvable symbols under
+  the engine's definition kind and lets a worker read what a registered name
+  means without executing anything.
 
   Each definition carries its own contract: `:entrypoints` says how the name may
   be reached, and `:param-spec` names the spec that judges the whole resolved
@@ -83,7 +83,7 @@
              {:key :abort
               :label "Abort"
               :description "Stop convention convergence for this target."
-              :next :dresser/abort
+              :next :abort
               :input abort-reason-input}]
    :attributes (assoc attributes
                       "workflow/decision-point" "conflict-policy")))
@@ -151,7 +151,7 @@
 (defn registered-name
   "Return the stable registry name an aspect's definition is published under."
   [aspect-key]
-  (keyword "dresser" (str/replace aspect-key "/" ".")))
+  (keyword (str/replace aspect-key "/" ".")))
 
 (defn aspect-workflow
   "Return the static workflow definition for `aspect-key`.
@@ -285,35 +285,30 @@
                          (:reason params)))}))))
 
 (def workflow-definitions
-  "Stable workflow names and the symbols resolving to their static definition
-  Vars, published as dresser's owner partition of the workflow spool's
-  definition kind by `ct.spools.dresser/contribute`.
-
-  Every aspect in the registry appears here under `registered-name`, because the
-  flavour umbrellas reach their aspects by registered name: an aspect dropped
-  from this partition while an umbrella still calls it is refused at refresh
-  rather than at the pour."
-  {:dresser/spool-repo 'ct.spools.dresser.workflows/spool-repo-workflow
-   :dresser/skein-dir 'ct.spools.dresser.workflows/skein-dir-workflow
-   :dresser/abort 'ct.spools.dresser.workflows/abort-workflow
-   :dresser/spool-repo.repo-skeleton
-   'ct.spools.dresser.workflows/spool-repo-repo-skeleton-workflow
-   :dresser/spool-repo.skein-workspace
-   'ct.spools.dresser.workflows/spool-repo-skein-workspace-workflow
-   :dresser/spool-repo.agent-docs
-   'ct.spools.dresser.workflows/spool-repo-agent-docs-workflow
-   :dresser/spool-repo.quality
-   'ct.spools.dresser.workflows/spool-repo-quality-workflow
-   :dresser/spool-repo.docs
-   'ct.spools.dresser.workflows/spool-repo-docs-workflow
-   :dresser/spool-repo.ci
-   'ct.spools.dresser.workflows/spool-repo-ci-workflow
-   :dresser/skein-dir.workspace
-   'ct.spools.dresser.workflows/skein-dir-workspace-workflow
-   :dresser/skein-dir.quality
-   'ct.spools.dresser.workflows/skein-dir-quality-workflow
-   :dresser/skein-dir.agent-docs
-   'ct.spools.dresser.workflows/skein-dir-agent-docs-workflow})
+  "Stable workflow names and their form-authored Vars, retained as a pure
+  discovery/test catalog. The `dresser` module publishes these names through
+  `workflow/defworkflow`; this map is never a contribution payload."
+  {:spool-repo 'dresser/spool-repo
+   :skein-dir 'dresser/skein-dir
+   :abort 'dresser/abort
+   :spool-repo.repo-skeleton
+   'dresser/spool-repo.repo-skeleton
+   :spool-repo.skein-workspace
+   'dresser/spool-repo.skein-workspace
+   :spool-repo.agent-docs
+   'dresser/spool-repo.agent-docs
+   :spool-repo.quality
+   'dresser/spool-repo.quality
+   :spool-repo.docs
+   'dresser/spool-repo.docs
+   :spool-repo.ci
+   'dresser/spool-repo.ci
+   :skein-dir.workspace
+   'dresser/skein-dir.workspace
+   :skein-dir.quality
+   'dresser/skein-dir.quality
+   :skein-dir.agent-docs
+   'dresser/skein-dir.agent-docs})
 
 (defn- topology-mode [aspect-key verify-only]
   (let [params {:root "<root>" :verify-only verify-only}

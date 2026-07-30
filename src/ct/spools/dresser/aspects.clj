@@ -18,7 +18,7 @@
    3 "3241b836a15e41a30428db2d09df9b24a4570abb1f273c50f898dc2b19ca1f89"
    4 "8a0623a366b78d71a5dce9304a82904b38ad80f9454a54550d4c385bfb39f036"
    5 "c65d4c1710f6ec952da6afb57bda81e0b8ae0ee663c33a33ef7954963f800516"
-   6 "aa2be5475533af09a5389031801442580da33f96f37a43ce9305d78c074a49ac"})
+   6 "50b9972a8b393002e8a1b794948ddb34d9964c809789db13b207b2cd34622ba3"})
 
 (def ^:private conflict-discipline
   "Honor the recorded conflict decisions for every owned file: keep preserves the customization, merge reconciles it with the canonical template, and replace uses the canonical template.")
@@ -161,7 +161,7 @@
                              {:key :abort
                               :label "Abort"
                               :description "Stop convention convergence for this target."
-                              :next :dresser/abort
+                              :next :abort
                               :input {:spec ::specs/abort-workflow-input
                                       :doc "Why convention convergence was aborted."}}]}]
     :gates [{:id :workflow-files
