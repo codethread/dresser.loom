@@ -4,14 +4,14 @@
             [clojure.set :as set]
             [clojure.string :as str]
             [clojure.test :refer [deftest is]]
-            [skein.api.spool.alpha :as spool]
-            [skein.api.weaver.alpha :as weaver]
+            [millstrand.api.spool.alpha :as spool]
+            [millstrand.api.weaver.alpha :as weaver]
             [ct.spools.dresser :as dresser]
             [ct.spools.dresser.aspects :as aspects]
             [ct.spools.dresser-fixtures :as fixtures]
             [ct.spools.dresser.receipt :as receipt]
             [ct.spools.dresser.target :as target]
-            [skein.spools.workflow :as workflow]))
+            [millstrand.spools.workflow :as workflow]))
 
 (defn- op! [runtime & args]
   (weaver/op! runtime 'dresser (vec args)))
@@ -84,24 +84,24 @@
   (fixtures/with-temp-dir [parent]
     (let [root (fixtures/git-init-root! parent "concurrent")
           spool-run (target/run-id "spool-repo" root)
-          skein-run (target/run-id "skein-dir" root)]
+          millstrand-run (target/run-id "millstrand-dir" root)]
       (fixtures/with-dresser-runtime
         {:real-shell? false}
         (fn [runtime _]
           (op! runtime "start" "spool-repo" (str root)
                "--aspects" "spool-repo/agent-docs")
-          (op! runtime "start" "skein-dir" (str root)
-               "--aspects" "skein-dir/workspace")
-          (is (not= spool-run skein-run))
-          (is (= #{spool-run skein-run}
+          (op! runtime "start" "millstrand-dir" (str root)
+               "--aspects" "millstrand-dir/workspace")
+          (is (not= spool-run millstrand-run))
+          (is (= #{spool-run millstrand-run}
                  (set (map #(spool/attr-get % :workflow/run-id)
                            (workflow/active-runs "dresser")))))
           (advance-ready! runtime "spool-repo" root)
-          (advance-ready! runtime "skein-dir" root)
+          (advance-ready! runtime "millstrand-dir" root)
           (is (= "checkpoint"
                  (:role (first (op! runtime "next" "spool-repo" (str root))))))
           (is (= "checkpoint"
-                 (:role (first (op! runtime "next" "skein-dir" (str root)))))))))))
+                 (:role (first (op! runtime "next" "millstrand-dir" (str root)))))))))))
 
 (deftest second-start-on-active-flavour-root-mode-fails-loudly
   (fixtures/with-temp-dir [parent]
@@ -145,7 +145,7 @@
   (fixtures/with-temp-dir [parent]
     (let [root (fixtures/git-init-root! parent "keep")
           aspect-key "spool-repo/agent-docs"
-          custom "# Local agent policy\n\n<!-- mill:skein-prime -->\nKeep this local rule.\n"
+          custom "# Local agent policy\n\n<!-- mill:millstrand-prime -->\nKeep this local rule.\n"
           agents-file (io/file (str root) "AGENTS.md")]
       (spit agents-file custom)
       (fixtures/with-dresser-runtime

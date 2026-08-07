@@ -1,6 +1,6 @@
 # <name>.spool
 
-A shared Skein spool.
+A shared Millstrand spool.
 
 ## Prerequisites
 
@@ -8,7 +8,7 @@ Approve this spool and each prerequisite explicitly in the operator workspace.
 
 ## Dependency information
 
-Pin this repository in `.skein/spools.edn`; add all prerequisite coordinates beside it.
+Pin this repository in `.millstrand/spools.edn`; add all prerequisite coordinates beside it.
 
 ## Activation
 

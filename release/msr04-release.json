@@ -1,0 +1,14 @@
+{
+  "card": "MSR-04",
+  "repository": "codethread/millstrand",
+  "coordinate": "io.millstrand/millstrand",
+  "ref-kind": "sha",
+  "sha": "5790c459e9bb692b5e975f9715df7d5b403feff2",
+  "landed-main-commit": "5790c459e9bb692b5e975f9715df7d5b403feff2",
+  "land-run": "land-bxwq0-sha-20260806",
+  "verification": [
+    "make build",
+    "scripts/verify-published-core.sh --mode candidate --source-root \"$PWD\" --coordinate io.millstrand/millstrand --repository https://github.com/codethread/millstrand.git",
+    "PATH=\"$PWD/bin:$PATH\" scripts/verify-published-core.sh --mode published --coordinate io.millstrand/millstrand --repository https://github.com/codethread/millstrand.git --sha 5790c459e9bb692b5e975f9715df7d5b403feff2"
+  ]
+}

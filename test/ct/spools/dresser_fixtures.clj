@@ -6,19 +6,19 @@
             [clojure.pprint :as pp]
             [clojure.string :as str]
             [clojure.test :refer [is]]
-            [skein.api.graph.alpha :as graph]
-            [skein.api.current.alpha :as current]
-            [skein.api.runtime.alpha :as runtime]
-            [skein.api.spool.alpha :as spool]
-            [skein.api.weaver.alpha :as weaver]
-            [skein.core.weaver.runtime :as weaver-runtime]
+            [millstrand.api.graph.alpha :as graph]
+            [millstrand.api.current.alpha :as current]
+            [millstrand.api.runtime.alpha :as runtime]
+            [millstrand.api.spool.alpha :as spool]
+            [millstrand.api.weaver.alpha :as weaver]
+            [millstrand.core.weaver.runtime :as weaver-runtime]
             [ct.spools.dresser :as dresser]
             [ct.spools.dresser.receipt :as receipt]
             [ct.spools.dresser.target :as target]
             [ct.spools.dresser.templates :as templates]
-            [skein.spools.executors.shell :as shell-executor]
-            [skein.spools.workflow :as workflow]
-            [skein.test.alpha :as t])
+            [millstrand.spools.executors.shell :as shell-executor]
+            [millstrand.spools.workflow :as workflow]
+            [millstrand.test.alpha :as t])
   (:import (java.nio.file Files Path)
            (java.nio.file.attribute FileAttribute)
            (java.time LocalDate)))
@@ -32,8 +32,8 @@
   {:storage :sqlite-memory
    :spools-edn {:spools {'codethread/dresser
                          {:local/root (.getCanonicalPath (io/file "."))}
-                         'skein.spools/workflow
-                         {:local/root (.getCanonicalPath (io/file "../skein-src/spools/workflow"))}}}})
+                         'millstrand.spools/workflow
+                         {:local/root (.getCanonicalPath (io/file "../millstrand/spools/workflow"))}}}})
 
 (defn activate-module!
   "Activate a form-authored spool module on a bare test runtime from the JVM
@@ -54,15 +54,15 @@
 (defn activate-workflow!
   "Activate the workflow spool module on a bare test runtime."
   [rt]
-  (activate-module! rt :workflow 'skein.spools.workflow
-                    :spools ['skein.spools/workflow]))
+  (activate-module! rt :workflow 'millstrand.spools.workflow
+                    :spools ['millstrand.spools/workflow]))
 
 (defn activate-serial-shell!
   "Activate the real shell executor module."
   [rt]
-  (activate-module! rt :shell 'skein.spools.executors.shell
+  (activate-module! rt :shell 'millstrand.spools.executors.shell
                     :after [:workflow]
-                    :spools ['skein.spools/workflow]))
+                    :spools ['millstrand.spools/workflow]))
 
 (defn activate-dresser-workflows!
   "Activate Dresser's public workflow-definition module."
@@ -132,12 +132,12 @@
 (defn- fixture-name [root]
   (-> (io/file (str root)) .getName (str/replace #"[^A-Za-z0-9_-]" "-")))
 
-(defn- sibling-skein-root []
-  (.getCanonicalPath (io/file "../skein-src")))
+(defn- sibling-millstrand-root []
+  (.getCanonicalPath (io/file "../millstrand")))
 
 (defn- spool-repo-deps [root]
   (-> (templates/template "spool-repo/deps.edn" {:name (fixture-name root)})
-      (str/replace "../skein-src" (sibling-skein-root))))
+      (str/replace "../millstrand" (sibling-millstrand-root))))
 
 (defn- docs-params
   "One plausible repo's docs parameters, the way a driving agent would fill them."
@@ -174,7 +174,8 @@
   "Write the spool-repo files owned by one setup step from canonical templates."
   [root title]
   (let [name (fixture-name root)
-        params {:name name}
+        params {:name name
+                :millstrand-sha "5790c459e9bb692b5e975f9715df7d5b403feff2"}
         ns-path (str/replace name "-" "_")]
     (case title
       "Write deps.edn"
@@ -193,12 +194,12 @@
       "Write gitignore"
       (write-template! root ".gitignore" "spool-repo/gitignore")
 
-      "Write Skein workspace"
+      "Write Millstrand workspace"
       (doseq [[relative template-key]
-              [[".skein/config.json" "skein/config.json"]
-               [".skein/spools.edn" "skein/spools.edn"]
-               [".skein/init.clj" "skein/init-minimal.clj"]
-               [".skein/.gitignore" "skein/gitignore"]]]
+              [[".millstrand/config.json" "millstrand/config.json"]
+               [".millstrand/spools.edn" "millstrand/spools.edn"]
+               [".millstrand/init.clj" "millstrand/init-minimal.clj"]
+               [".millstrand/.gitignore" "millstrand/gitignore"]]]
         (write-template! root relative template-key))
 
       "Write AGENTS.md"
@@ -245,7 +246,7 @@
                  "Write source and test"
                  "Write README"
                  "Write gitignore"
-                 "Write Skein workspace"
+                 "Write Millstrand workspace"
                  "Write AGENTS.md"
                  "Write quality config"
                  "Write Makefile fragments"
@@ -256,33 +257,33 @@
   root)
 
 (defn write-step-files!
-  "Write the skein-dir files owned by one setup step from canonical templates."
+  "Write the millstrand-dir files owned by one setup step from canonical templates."
   [root title]
   (case title
     "Write layered workspace"
     (doseq [[relative template-key]
-            [[".skein/config.json" "skein/config.json"]
-             [".skein/spools.edn" "skein/spools.edn"]
-             [".skein/init.clj" "skein/init-layered.clj"]
-             [".skein/.gitignore" "skein/gitignore"]]]
+            [[".millstrand/config.json" "millstrand/config.json"]
+             [".millstrand/spools.edn" "millstrand/spools.edn"]
+             [".millstrand/init.clj" "millstrand/init-layered.clj"]
+             [".millstrand/.gitignore" "millstrand/gitignore"]]]
       (write-template! root relative template-key))
 
     "Write quality tooling"
     (doseq [[relative template-key]
-            [[".skein/deps.edn" "skein-dir/deps.edn"]
-             [".skein/Makefile" "skein-dir/makefile"]]]
+            [[".millstrand/deps.edn" "millstrand-dir/deps.edn"]
+             [".millstrand/Makefile" "millstrand-dir/makefile"]]]
       (write-template! root relative template-key))
 
     "Write agent docs"
     (doseq [[relative template-key]
-            [[".skein/AGENTS.md" "skein-dir/agents.md"]
-             [".skein/CLAUDE.md" "skein-dir/claude.md"]]]
+            [[".millstrand/AGENTS.md" "millstrand-dir/agents.md"]
+             [".millstrand/CLAUDE.md" "millstrand-dir/claude.md"]]]
       (write-template! root relative template-key))
 
     nil))
 
-(defn snapshot-outside-skein
-  "Snapshot every host-tree path and file byte outside .skein/."
+(defn snapshot-outside-millstrand
+  "Snapshot every host-tree path and file byte outside .millstrand/."
   [root]
   (let [root-path (.toPath (io/file (str root)))]
     (into (sorted-map)
@@ -290,8 +291,8 @@
                 :let [path (.toPath file)
                       relative (str (.relativize root-path path))]
                 :when (and (not (str/blank? relative))
-                           (not (or (= relative ".skein")
-                                    (str/starts-with? relative (str ".skein" java.io.File/separator)))))]
+                           (not (or (= relative ".millstrand")
+                                    (str/starts-with? relative (str ".millstrand" java.io.File/separator)))))]
             [relative
              (if (.isDirectory file)
                :directory
@@ -318,7 +319,7 @@
     :poll-ms 25
     :check #(do
               (current/with-runtime runtime
-                ((ns-resolve 'skein.spools.executors.shell 'scan!)))
+                ((ns-resolve 'millstrand.spools.executors.shell 'scan!)))
               (attention runtime run-id))
     :pred->result identity
     :on-timeout (fn [_]
@@ -334,15 +335,15 @@
                      :max-driver-steps max-driver-steps
                      :ready (workflow/ready run-id)}))))
 
-(defn drive-skein-dir!
+(defn drive-millstrand-dir!
   "Drive all agent-owned work, letting the real shell executor own gates.
 
   before-advance runs after setup templates are written and before that setup
   step closes, allowing a test to introduce a deliberate gate failure."
   ([runtime root]
-   (drive-skein-dir! runtime root {}))
+   (drive-millstrand-dir! runtime root {}))
   ([runtime root {:keys [before-advance]}]
-   (let [run-id (target/run-id "skein-dir" root)]
+   (let [run-id (target/run-id "millstrand-dir" root)]
      (loop [driven 0]
        (let [{:keys [reason ready] :as state} (wait-for-attention! runtime run-id)]
          (case reason
@@ -351,7 +352,7 @@
            :driver
            (let [_ (require-driver-budget! run-id driven)
                  step (first ready)
-                 base ["advance" "skein-dir" (str root)]]
+                 base ["advance" "millstrand-dir" (str root)]]
              (if (= "checkpoint" (:role step))
                (weaver/op! runtime 'dresser (conj base "--choice" "clean"))
                (do

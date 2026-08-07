@@ -1,7 +1,7 @@
 (ns ct.spools.dresser.target
   "Canonical target-root resolution and stable dresser run identities."
   (:require [clojure.string :as str]
-            [skein.api.spool.alpha :as spool])
+            [millstrand.api.spool.alpha :as spool])
   (:import (java.nio.charset StandardCharsets)
            (java.nio.file Files LinkOption NoSuchFileException Path Paths)
            (java.security MessageDigest)))

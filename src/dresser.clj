@@ -4,9 +4,9 @@
   This intentionally small module owns the `dresser/*` workflow namespace.
   `defworkflow` keys entries from its qualified Var name, so defining the
   forms here preserves the public names while keeping workflow definitions in
-  Skein's owner-complete authoring grammar."
+  Millstrand's owner-complete authoring grammar."
   (:require [ct.spools.dresser.workflows :as workflows]
-            [skein.spools.workflow :as workflow]))
+            [millstrand.spools.workflow :as workflow]))
 
 (workflow/defworkflow spool-repo
   "Converge every spool-repo convention aspect on a target root."
@@ -15,12 +15,12 @@
    :defaults {:verify-only false}}
   (workflows/flavour-workflow "spool-repo"))
 
-(workflow/defworkflow skein-dir
-  "Converge every skein-dir convention aspect on a target root."
+(workflow/defworkflow millstrand-dir
+  "Converge every millstrand-dir convention aspect on a target root."
   {:entrypoints #{:start}
    :param-spec :ct.spools.dresser.specs/flavour-workflow-input
    :defaults {:verify-only false}}
-  (workflows/flavour-workflow "skein-dir"))
+  (workflows/flavour-workflow "millstrand-dir"))
 
 (workflow/defworkflow abort
   "Record why Dresser convention convergence was aborted, and stop."
@@ -34,11 +34,11 @@
    :defaults {:verify-only false}}
   workflows/spool-repo-repo-skeleton-workflow)
 
-(workflow/defworkflow spool-repo.skein-workspace
-  "Converge the spool-repo/skein-workspace convention aspect on a target root."
+(workflow/defworkflow spool-repo.millstrand-workspace
+  "Converge the spool-repo/millstrand-workspace convention aspect on a target root."
   {:entrypoints #{:call} :param-spec :ct.spools.dresser.specs/aspect-workflow-input
    :defaults {:verify-only false}}
-  workflows/spool-repo-skein-workspace-workflow)
+  workflows/spool-repo-millstrand-workspace-workflow)
 
 (workflow/defworkflow spool-repo.agent-docs
   "Converge the spool-repo/agent-docs convention aspect on a target root."
@@ -64,20 +64,20 @@
    :defaults {:verify-only false}}
   workflows/spool-repo-ci-workflow)
 
-(workflow/defworkflow skein-dir.workspace
-  "Converge the skein-dir/workspace convention aspect on a target root."
+(workflow/defworkflow millstrand-dir.workspace
+  "Converge the millstrand-dir/workspace convention aspect on a target root."
   {:entrypoints #{:call} :param-spec :ct.spools.dresser.specs/aspect-workflow-input
    :defaults {:verify-only false}}
-  workflows/skein-dir-workspace-workflow)
+  workflows/millstrand-dir-workspace-workflow)
 
-(workflow/defworkflow skein-dir.quality
-  "Converge the skein-dir/quality convention aspect on a target root."
+(workflow/defworkflow millstrand-dir.quality
+  "Converge the millstrand-dir/quality convention aspect on a target root."
   {:entrypoints #{:call} :param-spec :ct.spools.dresser.specs/aspect-workflow-input
    :defaults {:verify-only false}}
-  workflows/skein-dir-quality-workflow)
+  workflows/millstrand-dir-quality-workflow)
 
-(workflow/defworkflow skein-dir.agent-docs
-  "Converge the skein-dir/agent-docs convention aspect on a target root."
+(workflow/defworkflow millstrand-dir.agent-docs
+  "Converge the millstrand-dir/agent-docs convention aspect on a target root."
   {:entrypoints #{:call} :param-spec :ct.spools.dresser.specs/aspect-workflow-input
    :defaults {:verify-only false}}
-  workflows/skein-dir-agent-docs-workflow)
+  workflows/millstrand-dir-agent-docs-workflow)

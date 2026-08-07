@@ -7,7 +7,7 @@
   single contract surface: template key -> string, or fn of a params map."
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
-            [skein.api.spool.alpha :as spool]
+            [millstrand.api.spool.alpha :as spool]
             [ct.spools.dresser.specs :as specs]))
 
 (def ^:private resource-dir "ct/spools/dresser/templates/")
@@ -15,7 +15,7 @@
 (defn- resource-path
   "Resource path backing `template-name`.
 
-  Clojure-suffixed keys gain a `.template` extension: skein's spool sync treats
+  Clojure-suffixed keys gain a `.template` extension: millstrand's spool sync treats
   every `.clj`/`.cljc` file under a root's `:paths` as a namespace source and
   load-files it, which would evaluate these fragments as code."
   [template-name]
@@ -59,11 +59,11 @@
           param-keys))
 
 (def ^:private static-template-names
-  ["skein/config.json"
-   "skein/spools.edn"
-   "skein/init-minimal.clj"
-   "skein/init-layered.clj"
-   "skein/gitignore"
+  ["millstrand/config.json"
+   "millstrand/spools.edn"
+   "millstrand/init-minimal.clj"
+   "millstrand/init-layered.clj"
+   "millstrand/gitignore"
    "spool-repo/gitignore"
    "spool-repo/agents.md"
    "spool-repo/cljfmt.edn"
@@ -74,10 +74,10 @@
    "spool-repo/docs.mk"
    "spool-repo/mkdocs-hooks.py"
    "spool-repo/pages.yml"
-   "skein-dir/deps.edn"
-   "skein-dir/makefile"
-   "skein-dir/agents.md"
-   "skein-dir/claude.md"])
+   "millstrand-dir/deps.edn"
+   "millstrand-dir/makefile"
+   "millstrand-dir/agents.md"
+   "millstrand-dir/claude.md"])
 
 (def ^:private parameterized-template-names
   "Template key -> the params its placeholders consume, in substitution order.
@@ -90,7 +90,7 @@
    "spool-repo/readme" [:name]
    "spool-repo/mkdocs.yml" [:name :repo-name :site-name :site-description]
    "spool-repo/generate-api-docs.clj" [:name :repo-name :git-branch]
-   "spool-repo/quality.yml" [:name]})
+   "spool-repo/quality.yml" [:name :millstrand-sha]})
 
 (def fingerprint-params
   "Params rendering every template back to its backing resource's exact bytes.

@@ -1,7 +1,7 @@
 (ns ct.spools.dresser.aspects
   "Versioned convention aspects and their material lineage data."
   (:require [clojure.string :as str]
-            [skein.api.spool.alpha :as spool]
+            [millstrand.api.spool.alpha :as spool]
             [ct.spools.dresser.specs :as specs]
             [ct.spools.dresser.templates :as templates])
   (:import (java.nio.charset StandardCharsets)
@@ -18,7 +18,7 @@
    3 "3241b836a15e41a30428db2d09df9b24a4570abb1f273c50f898dc2b19ca1f89"
    4 "8a0623a366b78d71a5dce9304a82904b38ad80f9454a54550d4c385bfb39f036"
    5 "c65d4c1710f6ec952da6afb57bda81e0b8ae0ee663c33a33ef7954963f800516"
-   6 "50b9972a8b393002e8a1b794948ddb34d9964c809789db13b207b2cd34622ba3"})
+   6 "30964887cba66477f3e268116694853f154f71bc4af9397cdd99165806e54daf"})
 
 (def ^:private conflict-discipline
   "Honor the recorded conflict decisions for every owned file: keep preserves the customization, merge reconciles it with the canonical template, and replace uses the canonical template.")
@@ -61,17 +61,17 @@
              :argv ["sh" "-c" "grep -q '## Prerequisites' README.md && grep -q '## Dependency information' README.md && grep -q '## Activation' README.md"]
              :timeout-secs 30}]}
 
-   "spool-repo/skein-workspace"
+   "spool-repo/millstrand-workspace"
    {:version 3
     :deps []
-    :owned [".skein/config.json" ".skein/spools.edn" ".skein/init.clj" ".skein/.gitignore"]
-    :inspect "Compare the .skein bootstrap quartet with the canonical templates, record findings, and record a keep/merge/replace decision for each conflict."
-    :setup [(setup :write-workspace "Write Skein workspace"
-                   "Converge the bootstrap quartet using templates skein/config.json, skein/spools.edn, skein/init-minimal.clj, and skein/gitignore."
-                   ["skein/config.json" "skein/spools.edn" "skein/init-minimal.clj" "skein/gitignore"])]
+    :owned [".millstrand/config.json" ".millstrand/spools.edn" ".millstrand/init.clj" ".millstrand/.gitignore"]
+    :inspect "Compare the .millstrand bootstrap quartet with the canonical templates, record findings, and record a keep/merge/replace decision for each conflict."
+    :setup [(setup :write-workspace "Write Millstrand workspace"
+                   "Converge the bootstrap quartet using templates millstrand/config.json, millstrand/spools.edn, millstrand/init-minimal.clj, and millstrand/gitignore."
+                   ["millstrand/config.json" "millstrand/spools.edn" "millstrand/init-minimal.clj" "millstrand/gitignore"])]
     :gates [{:id :workspace-files
              :title "Check workspace files"
-             :argv ["sh" "-c" "test -f .skein/init.clj && test -f .skein/spools.edn && test -f .skein/.gitignore && grep -q configFormat .skein/config.json"]
+             :argv ["sh" "-c" "test -f .millstrand/init.clj && test -f .millstrand/spools.edn && test -f .millstrand/.gitignore && grep -q configFormat .millstrand/config.json"]
              :timeout-secs 30}]}
 
    "spool-repo/agent-docs"
@@ -84,7 +84,7 @@
                    ["spool-repo/agents.md"])]
     :gates [{:id :agents-md
              :title "Check AGENTS.md"
-             :argv ["sh" "-c" "grep -q 'mill:skein-prime' AGENTS.md && test $(wc -l < AGENTS.md) -le 70"]
+             :argv ["sh" "-c" "grep -q 'mill:millstrand-prime' AGENTS.md && test $(wc -l < AGENTS.md) -le 70"]
              :timeout-secs 30}]}
 
    "spool-repo/quality"
@@ -145,7 +145,7 @@
     :owned [".github/workflows/quality.yml" ".github/workflows/pages.yml"]
     :inspect "Compare both GitHub Actions workflows with the canonical templates, confirm the repository has a GitHub remote whose default branch is main, record findings, and record a keep/merge/replace decision for each conflict."
     :setup [(setup :write-workflows "Write CI workflows"
-                   "Converge .github/workflows/quality.yml and .github/workflows/pages.yml using templates spool-repo/quality.yml and spool-repo/pages.yml. Render quality.yml with name; it checks the repository out beside a sibling Skein checkout at <name>.spool, which is the layout the test alias' ../skein-src coordinate assumes. The quality gate consolidates clj-kondo and splint behind one make lint job, so a red build names lint rather than the offending linter; that is deliberate for a four-job repo, not an oversight. Quality gate is the job name branch protection binds to as a required check, so renaming it silently unbinds the protection."
+                   "Converge .github/workflows/quality.yml and .github/workflows/pages.yml using templates spool-repo/quality.yml and spool-repo/pages.yml. Render quality.yml with name and the required published Millstrand SHA as millstrand-sha; it checks the repository out beside that immutable Millstrand checkout at <name>.spool, which is the layout the test alias' ../millstrand coordinate assumes. The quality gate consolidates clj-kondo and splint behind one make lint job, so a red build names lint rather than the offending linter; that is deliberate for a four-job repo, not an oversight. Quality gate is the job name branch protection binds to as a required check, so renaming it silently unbinds the protection."
                    ["spool-repo/quality.yml" "spool-repo/pages.yml"])]
     :checkpoints [{:id :pages-source
                    :title "Enable GitHub Actions as the Pages build source"
@@ -177,51 +177,51 @@
              :argv ["sh" "-c" "make -n fmt-check lint test docs-check >/dev/null"]
              :timeout-secs 60}]}
 
-   "skein-dir/workspace"
+   "millstrand-dir/workspace"
    {:version 3
     :deps []
-    :owned [".skein/config.json" ".skein/spools.edn" ".skein/init.clj" ".skein/.gitignore"]
-    :inspect "Compare the self-contained .skein workspace with the layered canonical templates, record richer existing files as conflicts, and record a keep/merge/replace decision for each conflict."
+    :owned [".millstrand/config.json" ".millstrand/spools.edn" ".millstrand/init.clj" ".millstrand/.gitignore"]
+    :inspect "Compare the self-contained .millstrand workspace with the layered canonical templates, record richer existing files as conflicts, and record a keep/merge/replace decision for each conflict."
     :setup [(setup :write-workspace "Write layered workspace"
-                   "Converge the workspace using templates skein/config.json, skein/spools.edn, skein/init-layered.clj, and skein/gitignore."
-                   ["skein/config.json" "skein/spools.edn" "skein/init-layered.clj" "skein/gitignore"])]
+                   "Converge the workspace using templates millstrand/config.json, millstrand/spools.edn, millstrand/init-layered.clj, and millstrand/gitignore."
+                   ["millstrand/config.json" "millstrand/spools.edn" "millstrand/init-layered.clj" "millstrand/gitignore"])]
     :gates [{:id :workspace-files
              :title "Check workspace files"
-             :argv ["sh" "-c" "test -f .skein/init.clj && test -f .skein/spools.edn && test -f .skein/.gitignore && grep -q configFormat .skein/config.json"]
+             :argv ["sh" "-c" "test -f .millstrand/init.clj && test -f .millstrand/spools.edn && test -f .millstrand/.gitignore && grep -q configFormat .millstrand/config.json"]
              :timeout-secs 30}
             {:id :init-header
              :title "Check init header"
-             :argv ["sh" "-c" "head -20 .skein/init.clj | grep -qi 'startup entrypoint'"]
+             :argv ["sh" "-c" "head -20 .millstrand/init.clj | grep -qi 'startup entrypoint'"]
              :timeout-secs 30}]}
 
-   "skein-dir/quality"
+   "millstrand-dir/quality"
    {:version 2
-    :deps ["skein-dir/workspace"]
-    :owned [".skein/deps.edn" ".skein/Makefile"]
+    :deps ["millstrand-dir/workspace"]
+    :owned [".millstrand/deps.edn" ".millstrand/Makefile"]
     :inspect "Compare workspace-local quality tooling with the canonical templates, record findings, and record a keep/merge/replace decision for each conflict."
     :setup [(setup :write-quality-tooling "Write quality tooling"
-                   "Converge .skein/deps.edn and .skein/Makefile using templates skein-dir/deps.edn and skein-dir/makefile."
-                   ["skein-dir/deps.edn" "skein-dir/makefile"])]
+                   "Converge .millstrand/deps.edn and .millstrand/Makefile using templates millstrand-dir/deps.edn and millstrand-dir/makefile."
+                   ["millstrand-dir/deps.edn" "millstrand-dir/makefile"])]
     :gates [{:id :fmt-check
              :title "Check formatting"
-             :argv ["make" "-C" ".skein" "fmt-check"]
+             :argv ["make" "-C" ".millstrand" "fmt-check"]
              :timeout-secs 300}
             {:id :lint
              :title "Run linter"
-             :argv ["make" "-C" ".skein" "lint"]
+             :argv ["make" "-C" ".millstrand" "lint"]
              :timeout-secs 600}]}
 
-   "skein-dir/agent-docs"
+   "millstrand-dir/agent-docs"
    {:version 1
-    :deps ["skein-dir/workspace"]
-    :owned [".skein/AGENTS.md" ".skein/CLAUDE.md"]
+    :deps ["millstrand-dir/workspace"]
+    :owned [".millstrand/AGENTS.md" ".millstrand/CLAUDE.md"]
     :inspect "Compare workspace-local agent guidance with the canonical templates, record findings, and record a keep/merge/replace decision for each conflict."
     :setup [(setup :write-agent-docs "Write agent docs"
-                   "Converge .skein/AGENTS.md and .skein/CLAUDE.md using templates skein-dir/agents.md and skein-dir/claude.md."
-                   ["skein-dir/agents.md" "skein-dir/claude.md"])]
+                   "Converge .millstrand/AGENTS.md and .millstrand/CLAUDE.md using templates millstrand-dir/agents.md and millstrand-dir/claude.md."
+                   ["millstrand-dir/agents.md" "millstrand-dir/claude.md"])]
     :gates [{:id :agent-docs-files
              :title "Check agent docs"
-             :argv ["sh" "-c" "test -f .skein/AGENTS.md && test -f .skein/CLAUDE.md && grep -q 'AGENTS.md' .skein/CLAUDE.md"]
+             :argv ["sh" "-c" "test -f .millstrand/AGENTS.md && test -f .millstrand/CLAUDE.md && grep -q 'AGENTS.md' .millstrand/CLAUDE.md"]
              :timeout-secs 30}]}})
 
 (defn- validated-registry []
@@ -242,7 +242,7 @@
   (let [available (set (for [key (keys registry) :when (= flavour (key-flavour key))] key))]
     (when (empty? available)
       (spool/fail! "Unknown dresser flavour"
-                   {:flavour flavour :known #{"spool-repo" "skein-dir"}}))
+                   {:flavour flavour :known #{"spool-repo" "millstrand-dir"}}))
     (doseq [key selected]
       (when-not (contains? available key)
         (spool/fail! "Unknown dresser aspect for flavour"

@@ -1,39 +1,42 @@
-# Spool installer retirement release exception
+# MSR-09 Dresser release exception
 
-This record prepares `v1`, dresser's first release marker. It is not a tag or
-a publication instruction.
+This record prepares Dresser's next marker, `v4`. It is not a tag or a
+publication instruction.
 
-- Previous marker: none. The repository was untagged and sha-pinned only, so
-  no `v<int>` promise existed and no compatibility alarm baseline applies.
-- Proposed marker: annotated `v1`.
-- Affected root and names: `codethread/dresser`; the removed names are
-  `ct.spools.dresser/install!` (prerequisite check, vocabulary declaration,
-  workflow registration, op registration) and
-  `ct.spools.dresser.workflows/register-workflows!` (its imperative
-  registration loop). Activation is `contribute`/`reconcile` via the module
-  lifecycle; the exported `ct.spools.dresser/spool` var supplies the lifecycle
-  entry points.
-- Authorization: pre-`v1` clean break under TEN-000@1, directed by skein-src
-  ADR-003.P5 (epic waq0l, feature kst0n) — retiring `install!` everywhere so
-  the module lifecycle is the one activation path.
-- Known consumer: the dresser operator weaver world, whose `init.clj`
-  activates dresser imperatively; the epic's consumer-cutover feature moves it
-  to a guarded module declaration against this marker.
-- Also in this marker: the workflow surface moves from constructors to static
-  definitions, following the engine's deletion of the legacy constructor and
-  per-key declaration forms. `ct.spools.dresser.workflows/aspect-workflow` and
-  `flavour-workflow` return definition values instead of param-taking
-  constructors, `abort-workflow` becomes a `def`, and `contribute` publishes
-  under the workflow spool's definition kind rather than its constructor kind.
-  Registry release 5 is unaffected: the topology `describe` reports is
-  unchanged, so the release-5 fingerprint still verifies and `releases` is
-  untouched.
-- Also in this marker: registry release 5. The scaffolded workspace templates
-  emitted the removed `runtime/sync!`/`runtime/use!` lifecycle; they now emit
-  the module bootstrap `mill init` writes, bumping both workspace aspects to
-  v3.
-- Decision: no compatibility shim. Keeping an installer would preserve the
-  retired activation path this release exists to delete.
+- Previous marker: annotated `v3` at `d296a9f`.
+- Proposed marker: annotated `v4` after the candidate is landed.
+- Affected root: the card target `codethread/dresser.spool` and its generated
+  `spool-repo` targets. This checkout's current `origin` is
+  `codethread/dresser.loom`; the distinction is recorded in
+  `release/msr09-release.json` and published verification requires the origin
+  URL explicitly.
+- Domain identity retained: `ct.spools.dresser`, `dresser/*`, and the Dresser
+  workflow names remain Dresser-owned. The product-owned core identity moves
+  to `millstrand.*`, `io.millstrand/millstrand`, and `.millstrand`/`.ms`.
+- Core input: `release/msr04-release.json`, an immutable SHA record for
+  `codethread/millstrand` at
+  `5790c459e9bb692b5e975f9715df7d5b403feff2`. No core tag, `:git/tag`, or
+  `v1` core marker is used.
+- Generated repositories consume that SHA in `deps.edn` and in the CI
+  workflow's checkout `ref`; `:local/root` is rejected from generated release
+  metadata. Local sibling checkouts are development-only test paths.
+- `.millstrand` and `.ms` are equivalent workspace spellings. The pre-tag
+  verifier proves that both select the same Millstrand database after a real
+  stop and reopen.
+- `bin/verify-generated-repo` drives `strand dresser plan/start`, answers every
+  fresh-target checkpoint deterministically, stamps every shipped aspect, reruns
+  `plan` and `verify`, runs the generated quality commands, then regenerates
+  against a committed baseline and requires zero diff.
+- The Dresser release record keeps the card target and current origin separate;
+  no repository rename is inferred by the verifier.
+- `bin/identity-check` is a fail-closed audit over active source, tests,
+  templates, workspace config, build files, and release docs. Its empty
+  allowlist records that no active legacy identity exception remains.
+- Release proof: run `make all`, then
+  `MILL_BIN=/path/to/mill bin/verify-generated-repo --mode pre-tag
+  --source-root "$PWD" --core-release release/msr04-release.json`.
+  Post-tag proof uses `--mode published --repository
+  https://github.com/codethread/dresser.loom.git --tag v4 --sha <sha>`.
 
-Rollback is a consumer action: retain or restore the previous sha pin. Tags
-are immutable; corrections ship as the next marker.
+Rollback is a consumer action: retain or restore the previous Dresser SHA pin.
+No tag or publication is performed by this branch.

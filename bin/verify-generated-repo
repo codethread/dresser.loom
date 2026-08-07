@@ -1,0 +1,208 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat >&2 <<'EOF'
+usage:
+  bin/verify-generated-repo --mode pre-tag --source-root DIR --core-release FILE
+  bin/verify-generated-repo --mode published --repository URL --tag vN --sha SHA --core-release FILE
+EOF
+  exit 2
+}
+die() { echo "verify-generated-repo: $*" >&2; exit 1; }
+need() { command -v "$1" >/dev/null 2>&1 || die "missing command $1"; }
+
+mode=""; source_root=""; repository=""; tag=""; sha=""; core_release=""; seen=""
+claim() { case " $seen " in *" $1 "*) echo "verify-generated-repo: duplicate option: $1" >&2; exit 2;; esac; seen="$seen $1"; }
+while (($# > 0)); do
+  case "$1" in
+    --mode) claim "$1"; [[ $# -ge 2 ]] || usage; mode=$2; shift 2;;
+    --source-root) claim "$1"; [[ $# -ge 2 ]] || usage; source_root=$2; shift 2;;
+    --repository) claim "$1"; [[ $# -ge 2 ]] || usage; repository=$2; shift 2;;
+    --tag) claim "$1"; [[ $# -ge 2 ]] || usage; tag=$2; shift 2;;
+    --sha) claim "$1"; [[ $# -ge 2 ]] || usage; sha=$2; shift 2;;
+    --core-release) claim "$1"; [[ $# -ge 2 ]] || usage; core_release=$2; shift 2;;
+    -h|--help) usage;;
+    *) echo "verify-generated-repo: unknown argument: $1" >&2; usage;;
+  esac
+done
+[[ "$mode" == "pre-tag" || "$mode" == "published" ]] || usage
+[[ -f "$core_release" ]] || die "--core-release must name a JSON file"
+need git; need python3; need clojure
+repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
+if [[ "$mode" == "pre-tag" ]]; then
+  [[ -n "$source_root" && -d "$source_root" ]] || die "pre-tag requires --source-root"
+  [[ -z "$repository" && -z "$tag" && -z "$sha" ]] || die "published options are not valid in pre-tag mode"
+  source_root=$(cd "$source_root" && pwd -P)
+  [[ -d "$source_root/.git" || -f "$source_root/.git" ]] || die "source root is not a Git checkout"
+else
+  [[ -z "$source_root" ]] || die "--source-root is not valid in published mode"
+  [[ -n "$repository" && -n "$tag" && -n "$sha" ]] || die "published mode requires --repository, --tag, and --sha"
+  [[ "$tag" =~ ^v[1-9][0-9]*$ ]] || die "tag must match vN"
+  [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || die "sha must be lowercase 40-hex"
+  [[ "$repository" != /* && "$repository" != *"../"* ]] || die "published repository must not be a local path"
+fi
+
+core_sha=$(python3 - "$core_release" <<'PY'
+import json, re, sys
+with open(sys.argv[1], encoding="utf-8") as handle: release = json.load(handle)
+required = {"card", "repository", "coordinate", "ref-kind", "sha", "landed-main-commit", "land-run", "verification"}
+missing = sorted(required - release.keys())
+if missing: raise SystemExit("core release is missing fields: " + ", ".join(missing))
+if release["card"] != "MSR-04" or release["repository"] != "codethread/millstrand": raise SystemExit("core release identity does not match MSR-04")
+if release["coordinate"] != "io.millstrand/millstrand" or release["ref-kind"] != "sha": raise SystemExit("core release must use the Millstrand SHA identity")
+for field in ("sha", "landed-main-commit"):
+    if not re.fullmatch(r"[0-9a-f]{40}", release[field]): raise SystemExit("core release " + field + " must be lowercase 40-hex")
+if release["sha"] != release["landed-main-commit"] or release["sha"] != "5790c459e9bb692b5e975f9715df7d5b403feff2": raise SystemExit("core release SHA is not the approved immutable pin")
+if not isinstance(release["verification"], list) or not release["verification"]: raise SystemExit("core verification must be a non-empty array")
+print(release["sha"])
+PY
+) || die "invalid release record"
+
+python3 - "$repo_root/release/msr09-release.json" <<'PY'
+import json, re, sys
+with open(sys.argv[1], encoding="utf-8") as handle: release = json.load(handle)
+required = {"card", "status", "repository", "origin-repository", "coordinate", "proposed-tag", "core", "verification", "evidence"}
+missing = sorted(required - release.keys())
+if missing: raise SystemExit("Dresser release is missing fields: " + ", ".join(missing))
+if release["card"] != "MSR-09" or release["status"] != "proposed": raise SystemExit("Dresser release must be proposed MSR-09")
+if release["repository"] != "codethread/dresser.spool" or release["origin-repository"] != "codethread/dresser.loom": raise SystemExit("Dresser release must state both card and origin repositories")
+if release["coordinate"] != "codethread/dresser.spool" or not re.fullmatch(r"v[1-9][0-9]*", release["proposed-tag"]): raise SystemExit("Dresser release target identity is invalid")
+expected = {"repository": "codethread/millstrand", "coordinate": "io.millstrand/millstrand", "ref-kind": "sha", "sha": "5790c459e9bb692b5e975f9715df7d5b403feff2"}
+if release["core"] != expected: raise SystemExit("Dresser release core identity is not immutable MSR-04")
+if not isinstance(release["verification"], list) or not release["verification"]: raise SystemExit("Dresser verification must be non-empty")
+for key in ("identity-check", "dresser-lifecycle", "generated-quality", "regeneration", "marker-equivalence"):
+    if release["evidence"].get(key, {}).get("result") != "pass": raise SystemExit("Dresser evidence is not green: " + key)
+PY
+proposed_tag=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["proposed-tag"])' "$repo_root/release/msr09-release.json")
+
+core_url="https://github.com/codethread/millstrand.git"
+origin_url="https://github.com/codethread/dresser.loom.git"
+if [[ "$mode" == "published" ]]; then
+  [[ "$tag" == "$proposed_tag" ]] || die "published tag must be the proposed Dresser marker $proposed_tag"
+  [[ "$repository" == "$origin_url" || "$repository" == "git@github.com:codethread/dresser.loom.git" ]] || die "published repository must explicitly be current origin codethread/dresser.loom; card target is codethread/dresser.spool"
+  remote_sha=$(git ls-remote "$repository" "refs/tags/$tag^{}" | awk 'NR == 1 {print $1}')
+  [[ "$remote_sha" == "$sha" ]] || die "tag $tag resolves to ${remote_sha:-<none>}, expected $sha"
+fi
+[[ -x "$repo_root/bin/identity-check" ]] || die "missing executable bin/identity-check"
+(cd "$repo_root" && bin/identity-check) || die "identity audit failed"
+
+core_source=${MILLSTRAND_SOURCE:-$repo_root/../millstrand}
+[[ -d "$core_source/.git" || -f "$core_source/.git" ]] || die "missing Millstrand source checkout: $core_source"
+[[ "$(git -C "$core_source" rev-parse HEAD)" == "$core_sha" ]] || die "Millstrand source is not at immutable SHA $core_sha"
+mill_bin=${MILL_BIN:-}; [[ -n "$mill_bin" ]] || mill_bin="$core_source/bin/mill"; [[ -x "$mill_bin" ]] || mill_bin=$(command -v mill || true); [[ -n "$mill_bin" && -x "$mill_bin" ]] || die "missing mill executable"
+strand_bin=${STRAND_BIN:-}; [[ -n "$strand_bin" ]] || strand_bin="$core_source/bin/strand"; [[ -x "$strand_bin" ]] || strand_bin=$(command -v strand || true); [[ -n "$strand_bin" && -x "$strand_bin" ]] || die "missing strand executable"
+
+tmp_root=$(mktemp -d /tmp/dr.XXXXXX); state_root="$tmp_root/state"; operator="$tmp_root/operator/.millstrand"; generated="$tmp_root/generated"; candidate="$tmp_root/dresser"; core_checkout="$tmp_root/millstrand"; mill_pid=""
+cleanup() { local rc=$?; if [[ -n "$mill_pid" ]] && kill -0 "$mill_pid" 2>/dev/null; then kill "$mill_pid" 2>/dev/null || true; wait "$mill_pid" 2>/dev/null || true; fi; trap - EXIT; rm -rf "$tmp_root"; exit "$rc"; }
+trap cleanup EXIT
+mkdir -p "$state_root" "$operator" "$generated"
+git -C "$generated" init -q
+
+if [[ "$mode" == "pre-tag" ]]; then
+  cp -R "$source_root/." "$candidate/"; rm -rf "$candidate/.git"; git -C "$candidate" init -q; git -C "$candidate" add -A
+  git -C "$candidate" -c user.name='Dresser verifier' -c user.email='dresser-verifier@example.invalid' commit -qm 'candidate release'
+  dresser_url="file://$candidate"; dresser_sha=$(git -C "$candidate" rev-parse HEAD)
+else
+  git clone --quiet --depth 1 --branch "$tag" "$repository" "$candidate"; [[ "$(git -C "$candidate" rev-parse HEAD)" == "$sha" ]] || die "tag checkout does not match --sha"; dresser_url="$origin_url"; dresser_sha="$sha"
+fi
+git clone --quiet "$core_url" "$core_checkout"; git -C "$core_checkout" checkout --quiet "$core_sha"; [[ "$(git -C "$core_checkout" rev-parse HEAD)" == "$core_sha" ]] || die "core checkout does not match immutable SHA"
+
+printf '%s\n' '{"configFormat":"alpha","name":"dresser-verifier"}' >"$operator/config.json"
+cat >"$operator/spools.edn" <<EOF
+{:spools {millstrand.spools/workflow {:git/url "$core_url" :git/sha "$core_sha" :roots {millstrand.spools/workflow "spools/workflow"}}
+          codethread/dresser {:git/url "$dresser_url" :git/sha "$dresser_sha"}}}
+EOF
+cat >"$operator/init.clj" <<'EOF'
+(require '[millstrand.api.current.alpha :as current] '[millstrand.api.runtime.alpha :as runtime])
+(def runtime (current/runtime))
+(runtime/module! runtime :workflow {:ns 'millstrand.spools.workflow :spools ['millstrand.spools/workflow] :required? true})
+(runtime/module! runtime :shell-executor {:ns 'millstrand.spools.executors.shell :spools ['millstrand.spools/workflow] :after [:workflow] :required? true})
+(runtime/module! runtime :dresser-workflows {:ns 'dresser :spools ['codethread/dresser] :after [:workflow] :required? true})
+(runtime/module! runtime :dresser {:ns 'ct.spools.dresser :spools ['codethread/dresser] :after [:workflow :shell-executor :dresser-workflows] :required? true})
+EOF
+
+MILLSTRAND_SOURCE="$core_checkout" XDG_STATE_HOME="$state_root" "$mill_bin" start >"$tmp_root/mill.log" 2>&1 & mill_pid=$!
+ready=0; for _ in $(seq 1 300); do kill -0 "$mill_pid" 2>/dev/null || break; XDG_STATE_HOME="$state_root" "$mill_bin" status >/dev/null 2>&1 && ready=1 && break; sleep 0.1; done
+(( ready == 1 )) || die "mill did not become ready: $(sed -n '1,120p' "$tmp_root/mill.log")"
+mill() { XDG_STATE_HOME="$state_root" MILLSTRAND_SOURCE="$core_checkout" "$mill_bin" "$@"; }
+strand() { XDG_STATE_HOME="$state_root" MILLSTRAND_SOURCE="$core_checkout" "$strand_bin" --workspace "$operator" "$@"; }
+mill weaver start --workspace "$operator" >/dev/null || die "operator weaver failed to start"
+
+python3 - "$(strand dresser plan "$generated")" <<'PY'
+import json, sys
+if set(json.loads(sys.argv[1]).get("aspects", {}).values()) != {"new"}: raise SystemExit("fresh target plan was not entirely new")
+PY
+
+render() {
+  local key=$1 path=$2; shift 2; mkdir -p "$(dirname "$path")"; local value; value=$(strand dresser template "$key" "$@")
+  printf '%s' "$value" | python3 -c 'import json,sys; value=json.load(sys.stdin); open(sys.argv[1], "w", encoding="utf-8").write(value["content"])' "$path"
+}
+write_files() {
+  local title=$1 name=generated
+  case "$title" in
+    "Write deps.edn") render spool-repo/deps.edn "$generated/deps.edn" --param name=$name;;
+    "Write source and test") render spool-repo/src-ns.clj "$generated/src/ct/spools/$name.clj" --param name=$name; render spool-repo/test-main.clj "$generated/test/ct/spools/${name}_test.clj" --param name=$name;;
+    "Write README") render spool-repo/readme "$generated/README.md" --param name=$name;;
+    "Write gitignore") render spool-repo/gitignore "$generated/.gitignore";;
+    "Write Millstrand workspace") render millstrand/config.json "$generated/.millstrand/config.json"; render millstrand/spools.edn "$generated/.millstrand/spools.edn"; render millstrand/init-minimal.clj "$generated/.millstrand/init.clj"; render millstrand/gitignore "$generated/.millstrand/.gitignore";;
+    "Write AGENTS.md") render spool-repo/agents.md "$generated/AGENTS.md";;
+    "Write quality config") render spool-repo/cljfmt.edn "$generated/.cljfmt.edn"; render spool-repo/splint.edn "$generated/.splint.edn"; render spool-repo/quality-aliases.edn "$tmp_root/quality-aliases.edn"; (cd "$generated" && clojure -M -e "(require '[clojure.edn :as edn]) (let [d (edn/read-string (slurp \"deps.edn\")) q (edn/read-string (slurp \"$tmp_root/quality-aliases.edn\"))] (spit \"deps.edn\" (str (pr-str (update d :aliases merge q)) \"\\n\")))");;
+    "Write Makefile fragments") render spool-repo/makefile "$generated/Makefile"; render spool-repo/quality.mk "$generated/make/quality.mk";;
+    "Write docs pipeline") render spool-repo/mkdocs.yml "$generated/mkdocs.yml" --param name=$name --param repo-name=codethread/$name.spool --param 'site-name=generated.spool Docs' --param 'site-description=Source documentation projection for the generated spool'; render spool-repo/mkdocs-hooks.py "$generated/scripts/mkdocs_hooks.py"; render spool-repo/generate-api-docs.clj "$generated/scripts/generate_api_docs.clj" --param name=$name --param repo-name=codethread/$name.spool --param git-branch=main; render spool-repo/docs.mk "$generated/make/docs.mk";;
+    "Link docs projection") mkdir -p "$generated/.mkdocs"; ln -sfn ../README.md "$generated/.mkdocs/index.md"; ln -sfn ../generated.api.md "$generated/.mkdocs/generated.api.md";;
+    "Write CI workflows") render spool-repo/quality.yml "$generated/.github/workflows/quality.yml" --param name=$name --param millstrand-sha=$core_sha; render spool-repo/pages.yml "$generated/.github/workflows/pages.yml";;
+    "Write layered workspace") render millstrand/config.json "$generated/.millstrand/config.json"; render millstrand/spools.edn "$generated/.millstrand/spools.edn"; render millstrand/init-layered.clj "$generated/.millstrand/init.clj"; render millstrand/gitignore "$generated/.millstrand/.gitignore";;
+    "Write quality tooling") render millstrand-dir/deps.edn "$generated/.millstrand/deps.edn"; render millstrand-dir/makefile "$generated/.millstrand/Makefile";;
+    "Write agent docs") render millstrand-dir/agents.md "$generated/.millstrand/AGENTS.md"; render millstrand-dir/claude.md "$generated/.millstrand/CLAUDE.md";;
+  esac
+}
+
+drive() {
+  local flavour=$1 verify=$2 deadline=$((SECONDS + 900)); shift 2
+  while :; do
+    (( SECONDS < deadline )) || die "timed out driving Dresser run"
+    local args=(dresser next "$flavour" "$generated"); [[ "$verify" == yes ]] && args+=(--verify)
+    local ready; ready=$(strand "${args[@]}" ); local count; count=$(python3 -c 'import json,sys; print(len(json.loads(sys.argv[1])))' "$ready"); [[ "$count" == 0 ]] && return
+    local role gate; role=$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])[0].get("role",""))' "$ready"); gate=$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])[0].get("gate",""))' "$ready"); [[ "$gate" == shell ]] && { sleep 0.2; continue; }
+    local id title; id=$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])[0]["id"])' "$ready"); title=$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])[0].get("title",""))' "$ready")
+    if [[ "$role" == checkpoint ]]; then
+      local choice=clean; [[ "$title" == *Pages* ]] && choice=deferred; strand dresser advance "$flavour" "$generated" --step "$id" --choice "$choice" >/dev/null
+    else
+      [[ "$role" == step ]] || die "unexpected Dresser ready role: $role"; [[ "$title" == Inspect\ * ]] || write_files "$title"; strand dresser advance "$flavour" "$generated" --step "$id" >/dev/null
+    fi
+  done
+}
+spool_aspects="spool-repo/repo-skeleton,spool-repo/millstrand-workspace,spool-repo/agent-docs,spool-repo/quality,spool-repo/docs,spool-repo/ci"
+workspace_aspects="millstrand-dir/workspace,millstrand-dir/quality,millstrand-dir/agent-docs"
+strand dresser start spool-repo "$generated" --aspects "$spool_aspects" >/dev/null; drive spool-repo no
+strand dresser start millstrand-dir "$generated" --aspects "$workspace_aspects" >/dev/null; drive millstrand-dir no
+if grep -Eq ':local/root|:git/tag|:skein|\.skein' "$generated/deps.edn"; then die "generated deps.edn contains a local root, tag, or legacy identity"; fi
+grep -Fq "$core_sha" "$generated/deps.edn" || die "generated deps.edn lost the immutable core SHA"
+grep -Fq "ref: $core_sha" "$generated/.github/workflows/quality.yml" || die "generated workflow lost the immutable core SHA"
+for aspect in spool-repo/repo-skeleton spool-repo/millstrand-workspace spool-repo/agent-docs spool-repo/quality spool-repo/docs spool-repo/ci millstrand-dir/workspace millstrand-dir/quality millstrand-dir/agent-docs; do strand dresser stamp "$aspect" "$generated" >/dev/null; done
+python3 - "$(strand dresser plan "$generated")" <<'PY'
+import json, sys
+value = json.loads(sys.argv[1])
+if set(value.get("aspects", {}).values()) != {"current"}:
+    raise SystemExit("stamped target plan was not entirely current: " + json.dumps(value))
+PY
+strand dresser verify spool-repo "$generated" --aspects "$spool_aspects" >/dev/null; drive spool-repo yes
+strand dresser verify millstrand-dir "$generated" --aspects "$workspace_aspects" >/dev/null; drive millstrand-dir yes
+(cd "$generated" && GITLIBS="$tmp_root/gitlibs" make fmt-check lint test)
+
+git -C "$generated" add -A; git -C "$generated" -c user.name='Dresser verifier' -c user.email='dresser-verifier@example.invalid' commit -qm 'generated dresser baseline'
+strand dresser start spool-repo "$generated" --aspects "$spool_aspects" >/dev/null; drive spool-repo no
+strand dresser start millstrand-dir "$generated" --aspects "$workspace_aspects" >/dev/null; drive millstrand-dir no
+[[ -z "$(git -C "$generated" status --porcelain)" ]] || die "regeneration produced a diff"
+
+target_workspace="$generated/.millstrand"; target_alias="$generated/.ms"; mill init --workspace "$target_workspace" >/dev/null; mill weaver start --workspace "$target_workspace" >/dev/null; before=$(mill weaver status --workspace "$target_workspace"); before_db=$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["database_path"])' "$before"); mill weaver stop --workspace "$target_workspace" >/dev/null; mv "$target_workspace" "$target_alias"; after=$(mill weaver status --workspace "$target_alias"); after_db=$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["database_path"])' "$after"); before_db=$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$before_db"); after_db=$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$after_db"); [[ "$before_db" == "$after_db" ]] || die ".millstrand and .ms selected different databases"; mill weaver start --workspace "$target_alias" >/dev/null; mill weaver stop --workspace "$target_alias" >/dev/null
+
+echo "dresser generated-repo verification: clean"
+echo "  card repository: codethread/dresser.spool"
+echo "  current origin: codethread/dresser.loom"
+echo "  core: codethread/millstrand@$core_sha"
+echo "  Dresser: $dresser_url@$dresser_sha"
+echo "  lifecycle: plan/start/clean choices/stamp/plan/verify"
+echo "  regeneration: zero diff"
+echo "  marker-proof: .millstrand and .ms share the same database path"
