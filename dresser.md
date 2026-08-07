@@ -120,9 +120,7 @@ addresses the latest retained molecule for that run id.
 
 ## Receipt, plan, verify, and stamp
 
-The receipt is `.millstrand/conventions.edn` under the target root. `.ms/conventions.edn`
-is an equivalent alias path for the same receipt and workspace database; exactly
-one of `.millstrand` or `.ms` may exist, because both markers are ambiguous:
+The receipt is `.millstrand/conventions.edn` under the target root. `.ms/conventions.edn` is an equivalent alias path for the same receipt and workspace database; exactly one of `.millstrand` or `.ms` may exist, because both markers are ambiguous:
 
 ```clojure
 {:dresser/release 1
