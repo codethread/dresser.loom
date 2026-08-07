@@ -154,32 +154,11 @@ render() {
 }
 allowed_step_titles="Inspect repo-skeleton; Inspect millstrand-workspace; Inspect agent-docs; Inspect quality; Inspect docs; Inspect ci; Inspect workspace; Write deps.edn; Write source and test; Write README; Write gitignore; Write Millstrand workspace; Write AGENTS.md; Write quality config; Write Makefile fragments; Write docs pipeline; Link docs projection; Write CI workflows; Write layered workspace; Write quality tooling; Write agent docs"
 allowed_checkpoint_titles="Resolve owned-file conflicts; Enable GitHub Actions as the Pages build source"
-allowed_ready_gate_kinds="empty or shell"
-ready_observations() {
-  python3 - "$1" <<'PY'
-import json, sys
-
-ready = json.loads(sys.argv[1])
-if not isinstance(ready, list):
-    raise SystemExit("ready response is not a JSON list")
-print("; ".join(
-    "id={}; title={}; gate={}".format(
-        item.get("id", "<missing>"),
-        item.get("title", "<missing>"),
-        item.get("gate", ""),
-    )
-    for item in ready
-))
-PY
-}
 assert_ready_frontier() {
-  local ready=$1 count observations gate
-  count=$(python3 -c 'import json,sys; value=json.loads(sys.argv[1]); assert isinstance(value,list), "ready response is not a JSON list"; print(len(value))' "$ready")
-  observations=$(ready_observations "$ready")
-  (( count <= 1 )) || die "ready list cardinality is unsafe: observed $count items, expected 0 or 1; observed IDs/titles/gates: ${observations:-<none>}"
-  (( count == 0 )) && return
-  gate=$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])[0].get("gate", ""))' "$ready")
-  [[ -z "$gate" || "$gate" == shell ]] || die "unexpected non-empty ready gate: observed IDs/titles/gates: ${observations:-<none>}; allowed gate values: $allowed_ready_gate_kinds"
+  local ready=$1 validation_error
+  if ! validation_error=$("$repo_root/bin/validate-ready-frontier" "$ready" 2>&1); then
+    die "$validation_error"
+  fi
 }
 write_files() {
   local title=$1 name=generated

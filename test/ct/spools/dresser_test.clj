@@ -152,7 +152,7 @@
    "spool-repo/src-ns.clj" "62e3d453dba6de042b886c1e569be9ca92051149e1fec5f697943a519e0ac86b"
    "spool-repo/test-main.clj" "17f97f5682347a75a725f4f82e72b472c43cf8a99820e60f1f11015d7839a6d6"
    "spool-repo/gitignore" "056f5cfa3c8446008026c3dac0e8d36c4dc5dae569d911447a611dd3b277cafa"
-   "spool-repo/readme" "f6a0559f5de1841e800e08beb8f1d99eee17671f5746e3504175666a564b6218"
+   "spool-repo/readme" "4940188eca75d07b967be78c40cb573de3fc7bb0eb069d04e2411ef4934fe04b"
    "spool-repo/agents.md" "ce9b0f577499252e88d408ef04b2907e48d67e14a6e5f003960538136ad60be5"
    "spool-repo/cljfmt.edn" "ca9c9d6d0341cbe6cbad764ac82ac0ad306f925f145c490cfb83e2e06ef2a9c0"
    "spool-repo/splint.edn" "9e777a191b3aae2ef63d691430d4875a0cc43f2b7130874fed060e53c01bda94"
@@ -253,7 +253,7 @@
 
 (deftest aspect-registry-is-valid
   (is (= (set (keys expected-aspect-ids)) (set (keys aspects/registry))))
-  (is (= {"spool-repo/repo-skeleton" 6
+  (is (= {"spool-repo/repo-skeleton" 7
           "spool-repo/millstrand-workspace" 3
           "spool-repo/agent-docs" 1
           "spool-repo/quality" 3

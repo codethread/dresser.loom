@@ -1,6 +1,6 @@
-.PHONY: all fmt fmt-check lint test identity-check release-check
+.PHONY: all fmt fmt-check lint test ready-frontier-check identity-check release-check
 
-all: fmt-check lint test identity-check
+all: fmt-check lint test ready-frontier-check identity-check
 
 fmt:
 	clojure -M:format/fix
@@ -14,6 +14,9 @@ lint:
 
 test:
 	clojure -M:test
+
+ready-frontier-check:
+	test/verify-ready-frontier.sh
 
 identity-check:
 	bin/identity-check

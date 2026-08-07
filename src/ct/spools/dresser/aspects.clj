@@ -10,7 +10,7 @@
 
 (def release-version
   "Monotonic release for the complete aspect registry."
-  8)
+  9)
 
 (def releases
   "Published release fingerprints. Historical entries are immutable."
@@ -21,7 +21,8 @@
    5 "c65d4c1710f6ec952da6afb57bda81e0b8ae0ee663c33a33ef7954963f800516"
    6 "30964887cba66477f3e268116694853f154f71bc4af9397cdd99165806e54daf"
    7 "04cd916e114ac33ad7447f9151cfb046afd7cbf3061755f655642bbfc4037b98"
-   8 "b6eeec076fbe2f24140db091442fbb861b5a406e2a174b5c0616674c71bafaad"})
+   8 "b6eeec076fbe2f24140db091442fbb861b5a406e2a174b5c0616674c71bafaad"
+   9 "a3de8dbab7efd2acfda17aadea0e7c7e40bb1a94f13e59b3e3b89cdb9cc61065"})
 
 (def ^:private conflict-discipline
   "Honor the recorded conflict decisions for every owned file: keep preserves the customization, merge reconciles it with the canonical template, and replace uses the canonical template.")
@@ -35,7 +36,7 @@
 (def registry
   "The nine versioned dresser aspects, keyed by <flavour>/<aspect>."
   {"spool-repo/repo-skeleton"
-   {:version 6
+   {:version 7
     :deps []
     :owned ["deps.edn"
             "src/ct/spools/<name>.clj"

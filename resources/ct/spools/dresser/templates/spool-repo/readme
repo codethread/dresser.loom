@@ -8,7 +8,10 @@ Approve this spool and each prerequisite explicitly in the operator workspace.
 
 ## Dependency information
 
-Pin this repository and its prerequisites in `.millstrand/spools.edn` or `.ms/spools.edn`; Dresser receipts use the matching `.millstrand/conventions.edn` or `.ms/conventions.edn`.
+Pin this repository and its prerequisites in `.millstrand/spools.edn` or
+`.ms/spools.edn`; exactly one of `.millstrand` or `.ms` may be present. For the
+authoritative receipt-selection rule, see [Dresser's Receipt, plan, verify, and
+stamp contract](https://github.com/codethread/dresser.spool/blob/main/dresser.md#receipt-plan-verify-and-stamp).
 
 ## Activation
 
