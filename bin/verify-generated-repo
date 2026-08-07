@@ -152,6 +152,8 @@ render() {
   local key=$1 path=$2; shift 2; mkdir -p "$(dirname "$path")"; local value; value=$(strand dresser template "$key" "$@")
   printf '%s' "$value" | python3 -c 'import json,sys; value=json.load(sys.stdin); open(sys.argv[1], "w", encoding="utf-8").write(value["content"])' "$path"
 }
+allowed_step_titles="Inspect repo-skeleton; Inspect millstrand-workspace; Inspect agent-docs; Inspect quality; Inspect docs; Inspect ci; Inspect workspace; Write deps.edn; Write source and test; Write README; Write gitignore; Write Millstrand workspace; Write AGENTS.md; Write quality config; Write Makefile fragments; Write docs pipeline; Link docs projection; Write CI workflows; Write layered workspace; Write quality tooling; Write agent docs"
+allowed_checkpoint_titles="Resolve owned-file conflicts; Enable GitHub Actions as the Pages build source"
 write_files() {
   local title=$1 name=generated
   case "$title" in
@@ -169,6 +171,7 @@ write_files() {
     "Write layered workspace") render millstrand/config.json "$generated/.millstrand/config.json"; render millstrand/spools.edn "$generated/.millstrand/spools.edn"; render millstrand/init-layered.clj "$generated/.millstrand/init.clj"; render millstrand/gitignore "$generated/.millstrand/.gitignore";;
     "Write quality tooling") render millstrand-dir/deps.edn "$generated/.millstrand/deps.edn"; render millstrand-dir/makefile "$generated/.millstrand/Makefile";;
     "Write agent docs") render millstrand-dir/agents.md "$generated/.millstrand/AGENTS.md"; render millstrand-dir/claude.md "$generated/.millstrand/CLAUDE.md";;
+    *) die "unknown workflow step title: observed='$title'; allowed values: $allowed_step_titles";;
   esac
 }
 
@@ -181,9 +184,21 @@ drive() {
     local role gate; role=$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])[0].get("role",""))' "$ready"); gate=$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])[0].get("gate",""))' "$ready"); [[ "$gate" == shell ]] && { sleep 0.2; continue; }
     local id title; id=$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])[0]["id"])' "$ready"); title=$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])[0].get("title",""))' "$ready")
     if [[ "$role" == checkpoint ]]; then
-      local choice=clean; [[ "$title" == *Pages* ]] && choice=deferred; strand dresser advance "$flavour" "$generated" --step "$id" --choice "$choice" >/dev/null
+      local choice
+      case "$title" in
+        "Resolve owned-file conflicts") choice=clean;;
+        "Enable GitHub Actions as the Pages build source") choice=deferred;;
+        *) die "unknown workflow checkpoint title: observed='$title'; allowed values: $allowed_checkpoint_titles";;
+      esac
+      strand dresser advance "$flavour" "$generated" --step "$id" --choice "$choice" >/dev/null
     else
-      [[ "$role" == step ]] || die "unexpected Dresser ready role: $role"; [[ "$title" == Inspect\ * ]] || write_files "$title"; strand dresser advance "$flavour" "$generated" --step "$id" >/dev/null
+      [[ "$role" == step ]] || die "unexpected Dresser ready role: $role"
+      case "$title" in
+        "Inspect repo-skeleton"|"Inspect millstrand-workspace"|"Inspect agent-docs"|"Inspect quality"|"Inspect docs"|"Inspect ci"|"Inspect workspace") ;;
+        "Write deps.edn"|"Write source and test"|"Write README"|"Write gitignore"|"Write Millstrand workspace"|"Write AGENTS.md"|"Write quality config"|"Write Makefile fragments"|"Write docs pipeline"|"Link docs projection"|"Write CI workflows"|"Write layered workspace"|"Write quality tooling"|"Write agent docs") write_files "$title";;
+        *) die "unknown workflow step title: observed='$title'; allowed values: $allowed_step_titles";;
+      esac
+      strand dresser advance "$flavour" "$generated" --step "$id" >/dev/null
     fi
   done
 }

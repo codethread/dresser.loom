@@ -121,10 +121,31 @@
 (s/def ::template-param-key (s/or :keyword keyword? :string non-blank-string?))
 (s/def ::template-param-value string?)
 (s/def ::template-params (s/map-of ::template-param-key ::template-param-value))
+(defn- template-param [params key]
+  (if (contains? params key)
+    (get params key)
+    (get params (name key))))
+
+(defn immutable-sha? [value]
+  (and (string? value)
+       (boolean (re-matches #"[0-9a-f]{40}" value))))
+
+(s/def ::millstrand-sha immutable-sha?)
+(s/def ::quality-template-params
+  (s/and
+   ::template-params
+   #(non-blank-string? (template-param % :name))
+   #(s/valid? ::millstrand-sha (template-param % :millstrand-sha))))
+
+(defn- template-params-spec [template-name]
+  (case template-name
+    "spool-repo/quality.yml" ::quality-template-params
+    ::template-params))
+
 (s/def ::template-input
   (s/and map?
          #(s/valid? ::template-name (:name %))
-         #(s/valid? ::template-params (:params %))))
+         #(s/valid? (template-params-spec (:name %)) (:params %))))
 
 (s/def ::root root?)
 (s/def ::verify-only boolean?)

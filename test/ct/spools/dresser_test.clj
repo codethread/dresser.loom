@@ -197,7 +197,14 @@
   (let [unknown (thrown-data #(templates/template "not-a-template"))
         missing (thrown-data #(templates/template "spool-repo/deps.edn"))
         partial (thrown-data #(templates/template "spool-repo/mkdocs.yml"
-                                                  {:name "acme"}))]
+                                                  {:name "acme"}))
+        quality-blank-name (thrown-exception #(templates/template "spool-repo/quality.yml"
+                                                                  {:name " "
+                                                                   :millstrand-sha
+                                                                   "5790c459e9bb692b5e975f9715df7d5b403feff2"}))
+        quality-invalid-sha (thrown-exception #(templates/template "spool-repo/quality.yml"
+                                                                   {:name "acme"
+                                                                    :millstrand-sha "not-a-sha"}))]
     (is (= "not-a-template" (:template unknown)))
     (is (contains? (:known unknown) "millstrand/config.json"))
     (is (= "spool-repo/deps.edn" (:template missing)))
@@ -205,7 +212,13 @@
     (is (= {} (:params missing)))
     ;; A template consuming more than :name names the parameter it is short of,
     ;; rather than emitting an unsubstituted placeholder into an owned file.
-    (is (= :repo-name (:required partial)))))
+    (is (= :repo-name (:required partial)))
+    (is (= "Dresser template input has an invalid shape"
+           (ex-message quality-blank-name)))
+    (is (= "Dresser template input has an invalid shape"
+           (ex-message quality-invalid-sha)))
+    (is (some? (get-in (ex-data quality-invalid-sha)
+                       [:explain :clojure.spec.alpha/problems])))))
 
 (deftest template-lines-fit-review-width
   (doseq [[template-name entry] templates/templates

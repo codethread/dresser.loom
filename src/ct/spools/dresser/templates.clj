@@ -61,6 +61,11 @@
           (resource-content template-name)
           param-keys))
 
+(defn- keywordize-params [params]
+  (into {}
+        (map (fn [[key value]] [(keyword (name key)) value]))
+        params))
+
 (def ^:private static-template-names
   ["millstrand/config.json"
    "millstrand/spools.edn"
@@ -126,7 +131,8 @@
    (spool/require-valid! ::specs/template-input
                          {:name name :params params}
                          "Dresser template input has an invalid shape")
-   (let [entry (get templates name ::unknown)]
+   (let [params (keywordize-params params)
+         entry (get templates name ::unknown)]
      (when (= ::unknown entry)
        (spool/fail! "Unknown dresser template"
                     {:template name
