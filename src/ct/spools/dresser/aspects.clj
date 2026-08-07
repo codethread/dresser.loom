@@ -151,8 +151,11 @@
     :setup [(setup :write-workflows "Write CI workflows"
                    (fmt/reflow
                     "|Converge .github/workflows/quality.yml and .github/workflows/pages.yml using templates spool-repo/quality.yml and spool-repo/pages.yml.
-                     |Render quality.yml with name and the required published Millstrand SHA as millstrand-sha; it checks the repository out beside that immutable Millstrand checkout at <name>.spool, which is the layout the test alias' ../millstrand coordinate assumes.
-                     |The quality gate consolidates clj-kondo and splint behind one make lint job, so a red build names lint rather than the offending linter; that is deliberate for a four-job repo, not an oversight.
+                     |Render quality.yml with name and the required published Millstrand SHA as millstrand-sha;
+                     |it checks the repository out beside that immutable Millstrand checkout at <name>.spool,
+                     |which is the layout the test alias' ../millstrand coordinate assumes.
+                     |The quality gate consolidates clj-kondo and splint behind one make lint job, so a red build names lint rather than the offending linter; that is deliberate
+                     |for a four-job repo, not an oversight.
                      |Quality gate is the job name branch protection binds to as a required check, so renaming it silently unbinds the protection.")
                    ["spool-repo/quality.yml" "spool-repo/pages.yml"])]
     :checkpoints [{:id :pages-source
@@ -190,7 +193,9 @@
     :deps []
     :owned [".millstrand/config.json" ".millstrand/spools.edn" ".millstrand/init.clj" ".millstrand/.gitignore"]
     :inspect (fmt/reflow
-              "|Compare the self-contained .millstrand workspace with the layered canonical templates, record richer existing files as conflicts, and record a keep/merge/replace decision for each conflict.")
+              "|Compare the self-contained .millstrand workspace with the layered canonical
+               |templates, record richer existing files as conflicts, and record a
+               |keep/merge/replace decision for each conflict.")
     :setup [(setup :write-workspace "Write layered workspace"
                    (fmt/reflow
                     "|Converge the workspace using templates millstrand/config.json, millstrand/spools.edn, millstrand/init-layered.clj, and millstrand/gitignore.")
