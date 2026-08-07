@@ -10,7 +10,7 @@
 
 (def release-version
   "Monotonic release for the complete aspect registry."
-  7)
+  8)
 
 (def releases
   "Published release fingerprints. Historical entries are immutable."
@@ -20,7 +20,8 @@
    4 "8a0623a366b78d71a5dce9304a82904b38ad80f9454a54550d4c385bfb39f036"
    5 "c65d4c1710f6ec952da6afb57bda81e0b8ae0ee663c33a33ef7954963f800516"
    6 "30964887cba66477f3e268116694853f154f71bc4af9397cdd99165806e54daf"
-   7 "04cd916e114ac33ad7447f9151cfb046afd7cbf3061755f655642bbfc4037b98"})
+   7 "04cd916e114ac33ad7447f9151cfb046afd7cbf3061755f655642bbfc4037b98"
+   8 "b6eeec076fbe2f24140db091442fbb861b5a406e2a174b5c0616674c71bafaad"})
 
 (def ^:private conflict-discipline
   "Honor the recorded conflict decisions for every owned file: keep preserves the customization, merge reconciles it with the canonical template, and replace uses the canonical template.")
@@ -34,7 +35,7 @@
 (def registry
   "The nine versioned dresser aspects, keyed by <flavour>/<aspect>."
   {"spool-repo/repo-skeleton"
-   {:version 5
+   {:version 6
     :deps []
     :owned ["deps.edn"
             "src/ct/spools/<name>.clj"
@@ -68,10 +69,13 @@
     :deps []
     :owned [".millstrand/config.json" ".millstrand/spools.edn" ".millstrand/init.clj" ".millstrand/.gitignore"]
     :inspect (fmt/reflow
-              "|Compare the .millstrand bootstrap quartet with the canonical templates, record findings, and record a keep/merge/replace decision for each conflict.")
+              "|Compare the .millstrand bootstrap quartet with the canonical templates,
+               |record findings, and record a keep/merge/replace decision for each conflict.")
     :setup [(setup :write-workspace "Write Millstrand workspace"
                    (fmt/reflow
-                    "|Converge the bootstrap quartet using templates millstrand/config.json, millstrand/spools.edn, millstrand/init-minimal.clj, and millstrand/gitignore.")
+                    "|Converge the bootstrap quartet using templates
+                     |millstrand/config.json, millstrand/spools.edn, millstrand/init-minimal.clj,
+                     |and millstrand/gitignore.")
                    ["millstrand/config.json" "millstrand/spools.edn" "millstrand/init-minimal.clj" "millstrand/gitignore"])]
     :gates [{:id :workspace-files
              :title "Check workspace files"
@@ -150,11 +154,13 @@
     :inspect "Compare both GitHub Actions workflows with the canonical templates, confirm the repository has a GitHub remote whose default branch is main, record findings, and record a keep/merge/replace decision for each conflict."
     :setup [(setup :write-workflows "Write CI workflows"
                    (fmt/reflow
-                    "|Converge .github/workflows/quality.yml and .github/workflows/pages.yml using templates spool-repo/quality.yml and spool-repo/pages.yml.
+                    "|Converge .github/workflows/quality.yml and .github/workflows/pages.yml using
+                     |templates spool-repo/quality.yml and spool-repo/pages.yml.
                      |Render quality.yml with name and the required published Millstrand SHA as millstrand-sha;
                      |it checks the repository out beside that immutable Millstrand checkout at <name>.spool,
                      |which is the layout the test alias' ../millstrand coordinate assumes.
-                     |The quality gate consolidates clj-kondo and splint behind one make lint job, so a red build names lint rather than the offending linter; that is deliberate
+                     |The quality gate consolidates clj-kondo and splint behind one make lint job,
+                     |so a red build names lint rather than the offending linter; that is deliberate
                      |for a four-job repo, not an oversight.
                      |Quality gate is the job name branch protection binds to as a required check, so renaming it silently unbinds the protection.")
                    ["spool-repo/quality.yml" "spool-repo/pages.yml"])]
@@ -198,7 +204,8 @@
                |keep/merge/replace decision for each conflict.")
     :setup [(setup :write-workspace "Write layered workspace"
                    (fmt/reflow
-                    "|Converge the workspace using templates millstrand/config.json, millstrand/spools.edn, millstrand/init-layered.clj, and millstrand/gitignore.")
+                    "|Converge the workspace using templates millstrand/config.json, millstrand/spools.edn,
+                     |millstrand/init-layered.clj, and millstrand/gitignore.")
                    ["millstrand/config.json" "millstrand/spools.edn" "millstrand/init-layered.clj" "millstrand/gitignore"])]
     :gates [{:id :workspace-files
              :title "Check workspace files"

@@ -1,9 +1,6 @@
 # dresser.spool
 
-`ct.spools.dresser` converges repository conventions through versioned
-Millstrand workflows. An operator drives setup work against a target git root;
-shell gates verify the result; an explicit stamp writes the checked-in receipt
-at `.millstrand/conventions.edn`.
+`ct.spools.dresser` converges repository conventions through versioned Millstrand workflows. An operator drives setup work against a target git root; shell gates verify the result; an explicit stamp writes the checked-in receipt beside the selected workspace marker at `.millstrand/conventions.edn` or `.ms/conventions.edn`. The authoritative selection rule is in [Receipt, plan, verify, and stamp](./dresser.md#receipt-plan-verify-and-stamp).
 
 The spool is trusted Clojure code for a live Millstrand weaver. It has no
 `spool.edn` manifest: approve source in `spools.edn` or `spools.local.edn`, then

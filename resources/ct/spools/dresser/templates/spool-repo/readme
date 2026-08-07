@@ -8,7 +8,7 @@ Approve this spool and each prerequisite explicitly in the operator workspace.
 
 ## Dependency information
 
-Pin this repository in `.millstrand/spools.edn`; add all prerequisite coordinates beside it.
+Pin this repository and its prerequisites in `.millstrand/spools.edn` or `.ms/spools.edn`; Dresser receipts use the matching `.millstrand/conventions.edn` or `.ms/conventions.edn`.
 
 ## Activation
 
