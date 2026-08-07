@@ -8,7 +8,3 @@
 (runtime/module! runtime :millstrand/spools-batteries
   {:ns 'millstrand.spools.batteries
    :spools ['millstrand.spools/batteries]})
-
-;; Board peering (kanban.md "Peering"): guild first, kanban second, peering
-;; last. Each source collects its contribution and named lifecycle effects;
-;; declarations here name only source targets and world policy.

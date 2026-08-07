@@ -13,3 +13,7 @@ Pin this repository in `.millstrand/spools.edn`; add all prerequisite coordinate
 ## Activation
 
 After approval, sync the operator runtime and activate `ct.spools.<name>`.
+
+## Development
+
+Local tests require an immutable Millstrand checkout at sibling `../millstrand` because the test alias uses `../millstrand/spools/workflow/src`; CI creates that layout.
