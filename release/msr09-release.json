@@ -3,7 +3,7 @@
   "status": "proposed",
   "repository": "codethread/dresser.spool",
   "origin-repository": "codethread/dresser.loom",
-  "coordinate": "codethread/dresser.spool",
+  "coordinate": "ct.spools/dresser",
   "proposed-tag": "v4",
   "previous-tag": "v3",
   "core": {
@@ -16,7 +16,7 @@
     "make all",
     "bin/identity-check",
     "bin/verify-generated-repo --mode pre-tag --source-root \"$PWD\" --core-release release/msr04-release.json",
-    "bin/verify-generated-repo --mode published --repository https://github.com/codethread/dresser.loom.git --tag v4 --sha <published-sha> --core-release release/msr04-release.json"
+    "bin/verify-generated-repo --mode published --repository https://github.com/codethread/dresser.spool.git --tag v4 --sha <published-sha> --core-release release/msr04-release.json"
   ],
   "evidence": {
     "identity-check": {"result": "pass"},
@@ -51,7 +51,7 @@
     "repository-reconciliation": {
       "card-target": "codethread/dresser.spool",
       "current-origin": "codethread/dresser.loom",
-      "published-proof-input": "explicit --repository required"
+      "published-proof-repository": "https://github.com/codethread/dresser.spool.git"
     }
   }
 }

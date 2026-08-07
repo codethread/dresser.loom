@@ -67,7 +67,7 @@ missing = sorted(required - release.keys())
 if missing: raise SystemExit("Dresser release is missing fields: " + ", ".join(missing))
 if release["card"] != "MSR-09" or release["status"] != "proposed": raise SystemExit("Dresser release must be proposed MSR-09")
 if release["repository"] != "codethread/dresser.spool" or release["origin-repository"] != "codethread/dresser.loom": raise SystemExit("Dresser release must state both card and origin repositories")
-if release["coordinate"] != "codethread/dresser.spool" or not re.fullmatch(r"v[1-9][0-9]*", release["proposed-tag"]): raise SystemExit("Dresser release target identity is invalid")
+if release["coordinate"] != "ct.spools/dresser" or not re.fullmatch(r"v[1-9][0-9]*", release["proposed-tag"]): raise SystemExit("Dresser release target identity is invalid")
 expected = {"repository": "codethread/millstrand", "coordinate": "io.millstrand/millstrand", "ref-kind": "sha", "sha": "5790c459e9bb692b5e975f9715df7d5b403feff2"}
 if release["core"] != expected: raise SystemExit("Dresser release core identity is not immutable MSR-04")
 if not isinstance(release["verification"], list) or not release["verification"]: raise SystemExit("Dresser verification must be non-empty")
@@ -77,10 +77,10 @@ PY
 proposed_tag=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["proposed-tag"])' "$repo_root/release/msr09-release.json")
 
 core_url="https://github.com/codethread/millstrand.git"
-origin_url="https://github.com/codethread/dresser.loom.git"
+canonical_url="https://github.com/codethread/dresser.spool.git"
 if [[ "$mode" == "published" ]]; then
   [[ "$tag" == "$proposed_tag" ]] || die "published tag must be the proposed Dresser marker $proposed_tag"
-  [[ "$repository" == "$origin_url" || "$repository" == "git@github.com:codethread/dresser.loom.git" ]] || die "published repository must explicitly be current origin codethread/dresser.loom; card target is codethread/dresser.spool"
+  [[ "$repository" == "$canonical_url" || "$repository" == "git@github.com:codethread/dresser.spool.git" ]] || die "published repository must be the canonical post-rename codethread/dresser.spool URL"
   remote_sha=$(git ls-remote "$repository" "refs/tags/$tag^{}" | awk 'NR == 1 {print $1}')
   [[ "$remote_sha" == "$sha" ]] || die "tag $tag resolves to ${remote_sha:-<none>}, expected $sha"
 fi
@@ -118,7 +118,7 @@ if [[ "$mode" == "pre-tag" ]]; then
   git -C "$candidate" -c user.name='Dresser verifier' -c user.email='dresser-verifier@example.invalid' commit -qm 'candidate release'
   dresser_url="file://$candidate"; dresser_sha=$(git -C "$candidate" rev-parse HEAD)
 else
-  git clone --quiet --depth 1 --branch "$tag" "$repository" "$candidate"; [[ "$(git -C "$candidate" rev-parse HEAD)" == "$sha" ]] || die "tag checkout does not match --sha"; dresser_url="$origin_url"; dresser_sha="$sha"
+  git clone --quiet --depth 1 --branch "$tag" "$repository" "$candidate"; [[ "$(git -C "$candidate" rev-parse HEAD)" == "$sha" ]] || die "tag checkout does not match --sha"; dresser_url="$canonical_url"; dresser_sha="$sha"
 fi
 git clone --quiet "$core_url" "$core_checkout"; git -C "$core_checkout" checkout --quiet "$core_sha"; [[ "$(git -C "$core_checkout" rev-parse HEAD)" == "$core_sha" ]] || die "core checkout does not match immutable SHA"
 

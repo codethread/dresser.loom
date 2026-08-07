@@ -8,8 +8,9 @@ publication instruction.
 - Affected root: the card target `codethread/dresser.spool` and its generated
   `spool-repo` targets. This checkout's current `origin` is
   `codethread/dresser.loom`; the distinction is recorded in
-  `release/msr09-release.json` and published verification requires the origin
-  URL explicitly.
+  `release/msr09-release.json`; the coordinator renames it to the canonical
+  `codethread/dresser.spool` repository before publication, and published
+  verification requires that post-rename URL explicitly.
 - Domain identity retained: `ct.spools.dresser`, `dresser/*`, and the Dresser
   workflow names remain Dresser-owned. The product-owned core identity moves
   to `millstrand.*`, `io.millstrand/millstrand`, and `.millstrand`/`.ms`.
@@ -29,6 +30,7 @@ publication instruction.
   `plan` and `verify`, runs the generated quality commands, then regenerates
   against a committed baseline and requires zero diff.
 - The Dresser release record keeps the card target and current origin separate;
+  published verification requires the canonical post-rename repository URL;
   no repository rename is inferred by the verifier.
 - `bin/identity-check` is a fail-closed audit over active source, tests,
   templates, workspace config, build files, and release docs. Its empty
@@ -37,7 +39,7 @@ publication instruction.
   `MILL_BIN=/path/to/mill bin/verify-generated-repo --mode pre-tag
   --source-root "$PWD" --core-release release/msr04-release.json`.
   Post-tag proof uses `--mode published --repository
-  https://github.com/codethread/dresser.loom.git --tag v4 --sha <sha>`.
+  https://github.com/codethread/dresser.spool.git --tag v4 --sha <sha>`.
 
 Rollback is a consumer action: retain or restore the previous Dresser SHA pin.
 No tag or publication is performed by this branch.

@@ -40,7 +40,7 @@ by its immutable SHA and can use:
    :deps/root "spools/workflow"}
 
   codethread/dresser
-  {:git/url "git@github.com:codethread/dresser.loom.git"
+  {:git/url "git@github.com:codethread/dresser.spool.git"
    :git/sha "<40-hex-sha-for-the-approved-commit>"}}}
 ```
 
