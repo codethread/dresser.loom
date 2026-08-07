@@ -1,0 +1,31 @@
+name: Dresser quality
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Quality gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: dresser.spool
+      - uses: actions/checkout@v4
+        with:
+          repository: codethread/millstrand
+          ref: 5790c459e9bb692b5e975f9715df7d5b403feff2
+          path: millstrand
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: DeLaGuardo/setup-clojure@13.4
+        with:
+          cli: latest
+      - run: make all
+        working-directory: dresser.spool
