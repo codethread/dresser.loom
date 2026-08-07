@@ -9,6 +9,11 @@
 (defn- workspace-dir [root]
   (let [millstrand (io/file (str root) ".millstrand")
         alias (io/file (str root) ".ms")]
+    (when (and (.exists millstrand) (.exists alias))
+      (spool/fail! "Dresser receipt workspace is ambiguous"
+                   {:root (str root)
+                    :workspace-markers [(str millstrand) (str alias)]
+                    :reason :ambiguous-workspace}))
     (cond
       (.exists millstrand) millstrand
       (.exists alias) alias

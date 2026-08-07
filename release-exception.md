@@ -23,6 +23,13 @@ publication instruction.
 - `.millstrand` and `.ms` are equivalent workspace spellings. The pre-tag
   verifier proves that both select the same Millstrand database after a real
   stop and reopen.
+- Change-review dispositions: accepted fail-closed `MILL_BIN`/`STRAND_BIN`
+  overrides, ambiguous dual workspace-marker rejection, `|`-margin reflow for
+  the long CI aspect instruction, `.ms` receipt-path documentation, and the
+  authoritative `::specs/template-input` plus `:millstrand-sha` template docs.
+  Rejected removing generated AGENTS workflow discipline, adding a core-repo
+  CLI-style guide here, or replacing the pre-existing wait-for-attention
+  timeout/polling.
 - `bin/verify-generated-repo` drives `strand dresser plan/start`, answers every
   fresh-target checkpoint deterministically, stamps every shipped aspect, reruns
   `plan` and `verify`, runs the generated quality commands, then regenerates

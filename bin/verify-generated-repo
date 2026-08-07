@@ -90,8 +90,22 @@ fi
 core_source=${MILLSTRAND_SOURCE:-$repo_root/../millstrand}
 [[ -d "$core_source/.git" || -f "$core_source/.git" ]] || die "missing Millstrand source checkout: $core_source"
 [[ "$(git -C "$core_source" rev-parse HEAD)" == "$core_sha" ]] || die "Millstrand source is not at immutable SHA $core_sha"
-mill_bin=${MILL_BIN:-}; [[ -n "$mill_bin" ]] || mill_bin="$core_source/bin/mill"; [[ -x "$mill_bin" ]] || mill_bin=$(command -v mill || true); [[ -n "$mill_bin" && -x "$mill_bin" ]] || die "missing mill executable"
-strand_bin=${STRAND_BIN:-}; [[ -n "$strand_bin" ]] || strand_bin="$core_source/bin/strand"; [[ -x "$strand_bin" ]] || strand_bin=$(command -v strand || true); [[ -n "$strand_bin" && -x "$strand_bin" ]] || die "missing strand executable"
+if [[ -n "${MILL_BIN:-}" ]]; then
+  mill_bin=$MILL_BIN
+  [[ -f "$mill_bin" && -x "$mill_bin" ]] || die "MILL_BIN is set but not an executable file: $mill_bin"
+else
+  mill_bin="$core_source/bin/mill"
+  [[ -f "$mill_bin" && -x "$mill_bin" ]] || mill_bin=$(command -v mill || true)
+  [[ -n "$mill_bin" && -f "$mill_bin" && -x "$mill_bin" ]] || die "missing mill executable"
+fi
+if [[ -n "${STRAND_BIN:-}" ]]; then
+  strand_bin=$STRAND_BIN
+  [[ -f "$strand_bin" && -x "$strand_bin" ]] || die "STRAND_BIN is set but not an executable file: $strand_bin"
+else
+  strand_bin="$core_source/bin/strand"
+  [[ -f "$strand_bin" && -x "$strand_bin" ]] || strand_bin=$(command -v strand || true)
+  [[ -n "$strand_bin" && -f "$strand_bin" && -x "$strand_bin" ]] || die "missing strand executable"
+fi
 
 tmp_root=$(mktemp -d /tmp/dr.XXXXXX); state_root="$tmp_root/state"; operator="$tmp_root/operator/.millstrand"; generated="$tmp_root/generated"; candidate="$tmp_root/dresser"; core_checkout="$tmp_root/millstrand"; mill_pid=""
 cleanup() { local rc=$?; if [[ -n "$mill_pid" ]] && kill -0 "$mill_pid" 2>/dev/null; then kill "$mill_pid" 2>/dev/null || true; wait "$mill_pid" 2>/dev/null || true; fi; trap - EXIT; rm -rf "$tmp_root"; exit "$rc"; }

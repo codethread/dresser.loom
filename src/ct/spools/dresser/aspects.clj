@@ -1,6 +1,7 @@
 (ns ct.spools.dresser.aspects
   "Versioned convention aspects and their material lineage data."
   (:require [clojure.string :as str]
+            [millstrand.api.format.alpha :as fmt]
             [millstrand.api.spool.alpha :as spool]
             [ct.spools.dresser.specs :as specs]
             [ct.spools.dresser.templates :as templates])
@@ -145,7 +146,11 @@
     :owned [".github/workflows/quality.yml" ".github/workflows/pages.yml"]
     :inspect "Compare both GitHub Actions workflows with the canonical templates, confirm the repository has a GitHub remote whose default branch is main, record findings, and record a keep/merge/replace decision for each conflict."
     :setup [(setup :write-workflows "Write CI workflows"
-                   "Converge .github/workflows/quality.yml and .github/workflows/pages.yml using templates spool-repo/quality.yml and spool-repo/pages.yml. Render quality.yml with name and the required published Millstrand SHA as millstrand-sha; it checks the repository out beside that immutable Millstrand checkout at <name>.spool, which is the layout the test alias' ../millstrand coordinate assumes. The quality gate consolidates clj-kondo and splint behind one make lint job, so a red build names lint rather than the offending linter; that is deliberate for a four-job repo, not an oversight. Quality gate is the job name branch protection binds to as a required check, so renaming it silently unbinds the protection."
+                   (fmt/reflow
+                    "|Converge .github/workflows/quality.yml and .github/workflows/pages.yml using templates spool-repo/quality.yml and spool-repo/pages.yml.
+                     |Render quality.yml with name and the required published Millstrand SHA as millstrand-sha; it checks the repository out beside that immutable Millstrand checkout at <name>.spool, which is the layout the test alias' ../millstrand coordinate assumes.
+                     |The quality gate consolidates clj-kondo and splint behind one make lint job, so a red build names lint rather than the offending linter; that is deliberate for a four-job repo, not an oversight.
+                     |Quality gate is the job name branch protection binds to as a required check, so renaming it silently unbinds the protection.")
                    ["spool-repo/quality.yml" "spool-repo/pages.yml"])]
     :checkpoints [{:id :pages-source
                    :title "Enable GitHub Actions as the Pages build source"

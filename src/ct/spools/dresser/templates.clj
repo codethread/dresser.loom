@@ -4,7 +4,10 @@
   Each template's content is a real file under
   `resources/ct/spools/dresser/templates/`, so tab-sensitive and escape-heavy
   formats stay reviewable and diffable as themselves. `templates` remains the
-  single contract surface: template key -> string, or fn of a params map."
+  single contract surface: template key -> string, or fn of a params map.
+  The `template` function validates `{:name ... :params ...}` against the
+  authoritative `::specs/template-input` shape. Parameterized templates include
+  `spool-repo/quality.yml`, whose params require `:name` and `:millstrand-sha`."
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [millstrand.api.spool.alpha :as spool]
@@ -113,7 +116,10 @@
                parameterized-template-names)))
 
 (defn template
-  "Return canonical template content, failing loudly for unknown names or missing params."
+  "Return canonical template content after validating the ::specs/template-input shape.
+
+  Unknown names and missing parameters, including `:millstrand-sha` for the
+  quality workflow, fail loudly."
   ([name]
    (template name {}))
   ([name params]

@@ -175,5 +175,15 @@ one file per key in `ct.spools.dresser.templates/templates`, at the key's own
 path. A key ending in `.clj`/`.cljc` gets a `.template` extension on disk: millstrand
 loads every `.clj` under a spool root's `:paths` as a namespace source, so a
 template fragment named `.clj` would be evaluated as code on `reload-code!`.
+The template operation accepts the authoritative `::specs/template-input` shape,
+`{:name <non-blank-string> :params {<keyword-or-string> <string>}}`. The
+parameterized `spool-repo/quality.yml` template requires both `:name` and the
+published immutable `:millstrand-sha`, for example:
+
+```sh
+strand dresser template spool-repo/quality.yml \
+  --param name=acme --param millstrand-sha=5790c459e9bb692b5e975f9715df7d5b403feff2
+```
+
 Template bytes are covered by `expected-template-hashes` in the test suite, which
 guards the release fingerprints derived from them.

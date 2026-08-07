@@ -608,6 +608,32 @@
       (is (= :invalid-shape (:reason data)))
       (is (map? (:explain data))))))
 
+(deftest ms-receipt-path-is-equivalent-to-millstrand
+  (with-temp-dir [root]
+    (let [value {:dresser/release 1
+                 :dresser/fingerprint "alias"
+                 :aspects {}}
+          alias (io/file (.toFile root) ".ms")]
+      (.mkdirs alias)
+      (is (= value (receipt/write-receipt! root value)))
+      (is (= value (receipt/read-receipt root)))
+      (is (.exists (io/file alias "conventions.edn")))
+      (is (not (.exists (io/file (.toFile root) ".millstrand")))))))
+
+(deftest receipt-selection-fails-loudly-when-both-workspace-markers-exist
+  (with-temp-dir [root]
+    (.mkdirs (io/file (.toFile root) ".millstrand"))
+    (.mkdirs (io/file (.toFile root) ".ms"))
+    (doseq [operation [#(receipt/read-receipt root)
+                       #(receipt/write-receipt! root {:dresser/release 1
+                                                      :dresser/fingerprint "ambiguous"
+                                                      :aspects {}})]]
+      (let [data (thrown-data operation)]
+        (is (= :ambiguous-workspace (:reason data)))
+        (is (= [(str (io/file (.toFile root) ".millstrand"))
+                (str (io/file (.toFile root) ".ms"))]
+               (:workspace-markers data)))))))
+
 (deftest malformed-receipt-plan-input-yields-structured-spec-error
   (let [malformed {:dresser/fingerprint "release-one"
                    :aspects {"spool-repo/a"
