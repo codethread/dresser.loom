@@ -2,20 +2,20 @@
   "Convention-convergence spool: versioned per-aspect setup/verify workflows
   driven from an operator weaver world against a target repo path."
   (:require [clojure.string :as str]
-            [skein.api.current.alpha :as current]
-            [skein.api.format.alpha :as fmt]
-            [skein.api.graph.alpha :as graph]
-            [skein.api.lifecycle.alpha :as lifecycle]
-            [skein.api.skein.alpha :as skein]
-            [skein.api.spool.alpha :as spool]
-            [skein.api.vocab.alpha :as vocab]
+            [millstrand.api.current.alpha :as current]
+            [millstrand.api.format.alpha :as fmt]
+            [millstrand.api.graph.alpha :as graph]
+            [millstrand.api.lifecycle.alpha :as lifecycle]
+            [millstrand.api.millstrand.alpha :as millstrand]
+            [millstrand.api.spool.alpha :as spool]
+            [millstrand.api.vocab.alpha :as vocab]
             [ct.spools.dresser.aspects :as aspects]
             [ct.spools.dresser.receipt :as receipt]
             [ct.spools.dresser.specs :as specs]
             [ct.spools.dresser.target :as target]
             [ct.spools.dresser.templates :as templates]
             [ct.spools.dresser.workflows :as dresser-workflows]
-            [skein.spools.workflow :as workflow])
+            [millstrand.spools.workflow :as workflow])
   (:import (java.time LocalDate)))
 
 (def ^:dynamic *current-date*
@@ -43,15 +43,15 @@
   {:purpose
    (fmt/reflow
     "|Converge repositories on versioned formatting, linting, test, agent-guidance,
-     |and Skein-workspace conventions through inspectable, verifiable workflows.")
+     |and Millstrand-workspace conventions through inspectable, verifiable workflows.")
    :flavours
    (into (sorted-map)
-         (for [flavour ["spool-repo" "skein-dir"]]
+         (for [flavour ["spool-repo" "millstrand-dir"]]
            [flavour {:aspects (aspects/flavour-aspects flavour)}]))
    :semantics
    {:receipt
     (fmt/reflow
-     "|The checked-in .skein/conventions.edn receipt records green verification,
+     "|The checked-in .millstrand/conventions.edn receipt records green verification,
       |aspect versions, release lineage, and a release fingerprint; it does not prove
       |that files have not drifted since stamping.")
     :plan
@@ -188,7 +188,7 @@
     ((if verify? target/verify-run-id target/run-id) flavour root)))
 
 (defn ready
-  "Return `skein.spools.workflow/ready`'s engine-owned frontier unchanged for a
+  "Return `millstrand.spools.workflow/ready`'s engine-owned frontier unchanged for a
   setup run, or verify run when verify? is true."
   [flavour root verify?]
   (spool/require-valid! ::specs/ready-input
@@ -405,7 +405,7 @@
   "Registration metadata for the `dresser` op's authoring form."
   {:arg-spec dresser-arg-spec})
 
-(skein/defop dresser
+(millstrand/defop dresser
   "Inspect and converge repository conventions."
   dresser-op-options
   [request]
@@ -442,7 +442,7 @@
   "The `dresser/*` attribute-namespace declaration reconcile seeds."
   {:kind :attr-namespace
    :name "dresser"
-   :owner :skein/spools-dresser
+   :owner :millstrand/spools-dresser
    :keys ["dresser/flavour" "dresser/aspect" "dresser/version" "dresser/root"
           "dresser/gate-id"]
    :doc "Dresser target and aspect identity attributes on workflow roots and steps."})

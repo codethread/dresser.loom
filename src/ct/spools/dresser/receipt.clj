@@ -2,12 +2,25 @@
   "Filesystem receipt codec and pure receipt/registry plan classification."
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
-            [skein.api.spool.alpha :as spool]
+            [millstrand.api.spool.alpha :as spool]
             [ct.spools.dresser.specs :as specs])
   (:import (java.nio.file CopyOption Files StandardCopyOption)))
 
+(defn- workspace-dir [root]
+  (let [millstrand (io/file (str root) ".millstrand")
+        alias (io/file (str root) ".ms")]
+    (when (and (.exists millstrand) (.exists alias))
+      (spool/fail! "Dresser receipt workspace is ambiguous"
+                   {:root (str root)
+                    :workspace-markers [(str millstrand) (str alias)]
+                    :reason :ambiguous-workspace}))
+    (cond
+      (.exists millstrand) millstrand
+      (.exists alias) alias
+      :else millstrand)))
+
 (defn- receipt-file [root]
-  (io/file (str root) ".skein" "conventions.edn"))
+  (io/file (workspace-dir root) "conventions.edn"))
 
 (defn read-receipt
   "Read root's dresser receipt. Return nil if absent; reject malformed data."
@@ -41,7 +54,7 @@
   [root receipt move-fn]
   (spool/require-valid! ::specs/receipt receipt
                         "Dresser receipt has an invalid shape")
-  (let [directory (io/file (str root) ".skein")
+  (let [directory (workspace-dir root)
         target (.toPath (receipt-file root))]
     (Files/createDirectories
      (.toPath directory)

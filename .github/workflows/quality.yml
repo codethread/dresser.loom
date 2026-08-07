@@ -1,0 +1,37 @@
+name: Dresser quality
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Quality gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: dresser.spool
+      - uses: actions/checkout@v4
+        with:
+          repository: codethread/millstrand
+          ref: 5790c459e9bb692b5e975f9715df7d5b403feff2
+          path: millstrand
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: DeLaGuardo/setup-clojure@13.4
+        with:
+          cli: latest
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.2"
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y ripgrep
+      - run: make all
+        working-directory: dresser.spool

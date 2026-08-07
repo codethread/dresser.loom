@@ -2,7 +2,7 @@
 
 This document defines the contract of `ct.spools.dresser`. Dresser runs in
 an operator's weaver world and treats a target repository as a canonical
-absolute path. The target needs no Skein configuration of its own. It must
+absolute path. The target needs no Millstrand configuration of its own. It must
 already exist and be a git worktree root.
 
 Dresser does not edit files mechanically. Workflow instructions assign inspect
@@ -18,18 +18,18 @@ Dependencies are closed automatically when a subset is selected.
 | Flavour | Aspect | Version | Depends on | Gate ids |
 |---|---|---:|---|---|
 | `spool-repo` | `repo-skeleton` | 4 | — | `test-suite`, `readme-sections` |
-| `spool-repo` | `skein-workspace` | 3 | — | `workspace-files` |
+| `spool-repo` | `millstrand-workspace` | 3 | — | `workspace-files` |
 | `spool-repo` | `agent-docs` | 1 | — | `agents-md` |
 | `spool-repo` | `quality` | 3 | `spool-repo/repo-skeleton` | `fmt-check`, `lint` |
 | `spool-repo` | `docs` | 1 | `spool-repo/quality` | `docs-files`, `docs-targets`, `docs-check` |
 | `spool-repo` | `ci` | 1 | `spool-repo/docs` | `workflow-files`, `workflow-targets` |
-| `skein-dir` | `workspace` | 3 | — | `workspace-files`, `init-header` |
-| `skein-dir` | `quality` | 2 | `skein-dir/workspace` | `fmt-check`, `lint` |
-| `skein-dir` | `agent-docs` | 1 | `skein-dir/workspace` | `agent-docs-files` |
+| `millstrand-dir` | `workspace` | 3 | — | `workspace-files`, `init-header` |
+| `millstrand-dir` | `quality` | 2 | `millstrand-dir/workspace` | `fmt-check`, `lint` |
+| `millstrand-dir` | `agent-docs` | 1 | `millstrand-dir/workspace` | `agent-docs-files` |
 
 `spool-repo` describes a shared-spool repository with source, tests, root
 quality tooling, agent guidance, a published documentation site, and a minimal
-`.skein` workspace. `skein-dir` describes a self-contained `.skein` workspace
+`.millstrand` workspace. `millstrand-dir` describes a self-contained `.millstrand` workspace
 and never owns host-root files.
 
 `spool-repo/docs` needs `make`, `clojure` and `uvx` on the operator's PATH: its
@@ -60,7 +60,7 @@ under dependencies.
 
 `strand dresser next <flavour> <root>` returns the setup run's ready frontier.
 It passes through the step-view vector owned by
-`skein.spools.workflow/ready` without reshaping it.
+`millstrand.spools.workflow/ready` without reshaping it.
 `strand dresser advance <flavour> <root>` completes one ready agent step or
 checkpoint and accepts `--step`, `--choice`, and `--input`. Add
 `--verify` to either command to address the verify run. Verify runs contain only
@@ -120,7 +120,7 @@ addresses the latest retained molecule for that run id.
 
 ## Receipt, plan, verify, and stamp
 
-The receipt is `.skein/conventions.edn` under the target root:
+The authoritative workspace and receipt selection rule is that the receipt uses whichever single marker exists: `.millstrand/conventions.edn` or `.ms/conventions.edn`; both paths select the same receipt and workspace database, and exactly one of `.millstrand` or `.ms` may exist because both markers are ambiguous:
 
 ```clojure
 {:dresser/release 1

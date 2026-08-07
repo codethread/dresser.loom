@@ -14,10 +14,10 @@
   be reached, and `:param-spec` names the spec that judges the whole resolved
   params map, replacing the per-key argument list a constructor used to own."
   (:require [clojure.string :as str]
-            [skein.api.spool.alpha :as spool]
+            [millstrand.api.spool.alpha :as spool]
             [ct.spools.dresser.aspects :as aspects]
             [ct.spools.dresser.specs :as specs]
-            [skein.spools.workflow :as workflow]))
+            [millstrand.spools.workflow :as workflow]))
 
 (defn- aspect-parts [aspect-key]
   (let [[flavour aspect-name :as parts] (str/split aspect-key #"/" 2)]
@@ -191,8 +191,8 @@
 (def spool-repo-repo-skeleton-workflow
   (aspect-workflow "spool-repo/repo-skeleton"))
 
-(def spool-repo-skein-workspace-workflow
-  (aspect-workflow "spool-repo/skein-workspace"))
+(def spool-repo-millstrand-workspace-workflow
+  (aspect-workflow "spool-repo/millstrand-workspace"))
 
 (def spool-repo-agent-docs-workflow
   (aspect-workflow "spool-repo/agent-docs"))
@@ -206,14 +206,14 @@
 (def spool-repo-ci-workflow
   (aspect-workflow "spool-repo/ci"))
 
-(def skein-dir-workspace-workflow
-  (aspect-workflow "skein-dir/workspace"))
+(def millstrand-dir-workspace-workflow
+  (aspect-workflow "millstrand-dir/workspace"))
 
-(def skein-dir-quality-workflow
-  (aspect-workflow "skein-dir/quality"))
+(def millstrand-dir-quality-workflow
+  (aspect-workflow "millstrand-dir/quality"))
 
-(def skein-dir-agent-docs-workflow
-  (aspect-workflow "skein-dir/agent-docs"))
+(def millstrand-dir-agent-docs-workflow
+  (aspect-workflow "millstrand-dir/agent-docs"))
 
 (defn- call-id [aspect-key]
   (keyword (second (aspect-parts aspect-key))))
@@ -265,8 +265,8 @@
 (def spool-repo-workflow
   (flavour-workflow "spool-repo"))
 
-(def skein-dir-workflow
-  (flavour-workflow "skein-dir"))
+(def millstrand-dir-workflow
+  (flavour-workflow "millstrand-dir"))
 
 (def abort-workflow
   (workflow/static-definition
@@ -289,12 +289,12 @@
   discovery/test catalog. The `dresser` module publishes these names through
   `workflow/defworkflow`; this map is never a contribution payload."
   {:spool-repo 'dresser/spool-repo
-   :skein-dir 'dresser/skein-dir
+   :millstrand-dir 'dresser/millstrand-dir
    :abort 'dresser/abort
    :spool-repo.repo-skeleton
    'dresser/spool-repo.repo-skeleton
-   :spool-repo.skein-workspace
-   'dresser/spool-repo.skein-workspace
+   :spool-repo.millstrand-workspace
+   'dresser/spool-repo.millstrand-workspace
    :spool-repo.agent-docs
    'dresser/spool-repo.agent-docs
    :spool-repo.quality
@@ -303,12 +303,12 @@
    'dresser/spool-repo.docs
    :spool-repo.ci
    'dresser/spool-repo.ci
-   :skein-dir.workspace
-   'dresser/skein-dir.workspace
-   :skein-dir.quality
-   'dresser/skein-dir.quality
-   :skein-dir.agent-docs
-   'dresser/skein-dir.agent-docs})
+   :millstrand-dir.workspace
+   'dresser/millstrand-dir.workspace
+   :millstrand-dir.quality
+   'dresser/millstrand-dir.quality
+   :millstrand-dir.agent-docs
+   'dresser/millstrand-dir.agent-docs})
 
 (defn- topology-mode [aspect-key verify-only]
   (let [params {:root "<root>" :verify-only verify-only}

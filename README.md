@@ -1,26 +1,23 @@
 # dresser.spool
 
-`ct.spools.dresser` converges repository conventions through versioned
-Skein workflows. An operator drives setup work against a target git root;
-shell gates verify the result; an explicit stamp writes the checked-in receipt
-at `.skein/conventions.edn`.
+`ct.spools.dresser` converges repository conventions through versioned Millstrand workflows. An operator drives setup work against a target git root; shell gates verify the result; an explicit stamp writes the checked-in receipt beside the selected workspace marker at `.millstrand/conventions.edn` or `.ms/conventions.edn`. The authoritative selection rule is in [Receipt, plan, verify, and stamp](./dresser.md#receipt-plan-verify-and-stamp).
 
-The spool is trusted Clojure code for a live Skein weaver. It has no
-`spool.edn` manifest: approve source in `spools.edn` or `spools.local.edn`, run
-`sync!`, then activate it explicitly with `use!`. The full behavior contract is
-in [dresser.md](./dresser.md).
+The spool is trusted Clojure code for a live Millstrand weaver. It has no
+`spool.edn` manifest: approve source in `spools.edn` or `spools.local.edn`, then
+activate its modules explicitly from `init.clj` or a trusted REPL. The full
+behavior contract is in [dresser.md](./dresser.md).
 
 ## Prerequisites
 
-- A Skein checkout and a live weaver configured from an operator workspace.
-- Explicit approval of the workflow spool root at `<skein>/spools/workflow`.
+- A Millstrand checkout and a live weaver configured from an operator workspace.
+- Explicit approval of the workflow spool root at `<millstrand>/spools/workflow`.
 - A 40-hex git SHA pin for this repository, or a local development override.
 - The shell executor namespace. It ships on the workflow spool classpath, needs
   no separate source approval, and is activation-only. Activate it after the
   workflow engine.
 
 Dresser installs no prerequisite transitively. The target repository does not
-need Skein or a running weaver; it only needs to be an existing git worktree
+need Millstrand or a running weaver; it only needs to be an existing git worktree
 root. Gates run the target's own toolchain, so `spool-repo/docs` additionally
 needs `make`, `clojure` and `uvx` on the operator's PATH. `spool-repo/ci` writes
 GitHub Actions workflows, so it assumes a GitHub-hosted repository with `main`
@@ -29,26 +26,19 @@ on that repository.
 
 ## Dependency information
 
-Approve every source spool explicitly. A workspace using a local Skein checkout
-and a pinned dresser release can use:
+Approve every source spool explicitly. A published workspace pins Millstrand
+by its immutable SHA and can use:
 
 ```clojure
 {:spools
- {skein.spools/workflow
-  {:local/root "/path/to/skein/spools/workflow"}
+ {millstrand.spools/workflow
+  {:git/url "https://github.com/codethread/millstrand.git"
+   :git/sha "5790c459e9bb692b5e975f9715df7d5b403feff2"
+   :deps/root "spools/workflow"}
 
   codethread/dresser
-  {:git/url "git@github.com:codethread/dresser.loom.git"
+  {:git/url "git@github.com:codethread/dresser.spool.git"
    :git/sha "<40-hex-sha-for-the-approved-commit>"}}}
-```
-
-To pin the workflow root from git instead, replace its local coordinate with:
-
-```clojure
-skein.spools/workflow
-{:git/url "https://github.com/codethread/skein.git"
- :git/sha "<40-hex-skein-sha>"
- :deps/root "spools/workflow"}
 ```
 
 For local dresser development, add a gitignored `spools.local.edn` overlay:
@@ -69,13 +59,13 @@ target. Startup config therefore declares only the source and world policy:
 
 ```clojure
 (runtime/module! runtime :workflow
-                 {:ns 'skein.spools.workflow
-                  :spools ['skein.spools/workflow]
+                 {:ns 'millstrand.spools.workflow
+                  :spools ['millstrand.spools/workflow]
                   :required? true})
 
 (runtime/module! runtime :shell-executor
-                 {:ns 'skein.spools.executors.shell
-                  :spools ['skein.spools/workflow]
+                 {:ns 'millstrand.spools.executors.shell
+                  :spools ['millstrand.spools/workflow]
                   :after [:workflow]
                   :required? true})
 
@@ -142,7 +132,7 @@ Then stamp each adopted aspect from that setup run's latest green gate evidence:
 
 ```sh
 strand dresser stamp spool-repo/repo-skeleton /path/to/target
-strand dresser stamp spool-repo/skein-workspace /path/to/target
+strand dresser stamp spool-repo/millstrand-workspace /path/to/target
 strand dresser stamp spool-repo/agent-docs /path/to/target
 strand dresser stamp spool-repo/quality /path/to/target
 strand dresser stamp spool-repo/docs /path/to/target
@@ -156,7 +146,7 @@ inspect that run with `next --verify`:
 
 ```sh
 strand dresser verify spool-repo /path/to/target \
-  --aspects spool-repo/skein-workspace,spool-repo/agent-docs
+  --aspects spool-repo/millstrand-workspace,spool-repo/agent-docs
 strand dresser next spool-repo /path/to/target --verify
 ```
 
@@ -166,7 +156,7 @@ receipt writes are atomic per file but last-writer-wins across worlds.
 
 ## Development
 
-This checkout expects Skein at `../skein-src`; the test alias adds both the
+This checkout expects Millstrand at `../millstrand`; the test alias adds both the
 base checkout and its workflow spool root:
 
 ```sh
@@ -174,13 +164,20 @@ clojure -M:test
 PATH=/opt/homebrew/opt/openjdk/bin:$PATH make fmt-check lint test
 ```
 
-The repository's `.skein/init.clj` remains the minimal batteries bootstrap.
+The repository's `.millstrand/init.clj` remains the minimal batteries bootstrap.
 Dresser is not activated in its own workspace.
 
 Canonical template content lives under `resources/ct/spools/dresser/templates/`,
 one file per key in `ct.spools.dresser.templates/templates`, at the key's own
-path. A key ending in `.clj`/`.cljc` gets a `.template` extension on disk: skein
+path. A key ending in `.clj`/`.cljc` gets a `.template` extension on disk: millstrand
 loads every `.clj` under a spool root's `:paths` as a namespace source, so a
 template fragment named `.clj` would be evaluated as code on `reload-code!`.
+The template operation accepts the authoritative `::specs/template-input` shape, `{:name <non-blank-string> :params {<keyword-or-string> <string>}}`. The parameterized `spool-repo/quality.yml` template requires both `:name` and the published immutable `:millstrand-sha`, for example:
+
+```sh
+strand dresser template spool-repo/quality.yml \
+  --param name=acme --param millstrand-sha=5790c459e9bb692b5e975f9715df7d5b403feff2
+```
+
 Template bytes are covered by `expected-template-hashes` in the test suite, which
 guards the release fingerprints derived from them.

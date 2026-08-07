@@ -4,10 +4,13 @@
   Each template's content is a real file under
   `resources/ct/spools/dresser/templates/`, so tab-sensitive and escape-heavy
   formats stay reviewable and diffable as themselves. `templates` remains the
-  single contract surface: template key -> string, or fn of a params map."
+  single contract surface: template key -> string, or fn of a params map.
+  The `template` function validates `{:name ... :params ...}` against the
+  authoritative `::specs/template-input` shape. Parameterized templates include
+  `spool-repo/quality.yml`, whose params require `:name` and `:millstrand-sha`."
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
-            [skein.api.spool.alpha :as spool]
+            [millstrand.api.spool.alpha :as spool]
             [ct.spools.dresser.specs :as specs]))
 
 (def ^:private resource-dir "ct/spools/dresser/templates/")
@@ -15,7 +18,7 @@
 (defn- resource-path
   "Resource path backing `template-name`.
 
-  Clojure-suffixed keys gain a `.template` extension: skein's spool sync treats
+  Clojure-suffixed keys gain a `.template` extension: millstrand's spool sync treats
   every `.clj`/`.cljc` file under a root's `:paths` as a namespace source and
   load-files it, which would evaluate these fragments as code."
   [template-name]
@@ -58,12 +61,17 @@
           (resource-content template-name)
           param-keys))
 
+(defn- keywordize-params [params]
+  (into {}
+        (map (fn [[key value]] [(keyword (name key)) value]))
+        params))
+
 (def ^:private static-template-names
-  ["skein/config.json"
-   "skein/spools.edn"
-   "skein/init-minimal.clj"
-   "skein/init-layered.clj"
-   "skein/gitignore"
+  ["millstrand/config.json"
+   "millstrand/spools.edn"
+   "millstrand/init-minimal.clj"
+   "millstrand/init-layered.clj"
+   "millstrand/gitignore"
    "spool-repo/gitignore"
    "spool-repo/agents.md"
    "spool-repo/cljfmt.edn"
@@ -74,10 +82,10 @@
    "spool-repo/docs.mk"
    "spool-repo/mkdocs-hooks.py"
    "spool-repo/pages.yml"
-   "skein-dir/deps.edn"
-   "skein-dir/makefile"
-   "skein-dir/agents.md"
-   "skein-dir/claude.md"])
+   "millstrand-dir/deps.edn"
+   "millstrand-dir/makefile"
+   "millstrand-dir/agents.md"
+   "millstrand-dir/claude.md"])
 
 (def ^:private parameterized-template-names
   "Template key -> the params its placeholders consume, in substitution order.
@@ -90,7 +98,7 @@
    "spool-repo/readme" [:name]
    "spool-repo/mkdocs.yml" [:name :repo-name :site-name :site-description]
    "spool-repo/generate-api-docs.clj" [:name :repo-name :git-branch]
-   "spool-repo/quality.yml" [:name]})
+   "spool-repo/quality.yml" [:name :millstrand-sha]})
 
 (def fingerprint-params
   "Params rendering every template back to its backing resource's exact bytes.
@@ -113,14 +121,18 @@
                parameterized-template-names)))
 
 (defn template
-  "Return canonical template content, failing loudly for unknown names or missing params."
+  "Return canonical template content after validating the ::specs/template-input shape.
+
+  Unknown names and missing parameters, including `:millstrand-sha` for the
+  quality workflow, fail loudly."
   ([name]
    (template name {}))
   ([name params]
    (spool/require-valid! ::specs/template-input
                          {:name name :params params}
                          "Dresser template input has an invalid shape")
-   (let [entry (get templates name ::unknown)]
+   (let [params (keywordize-params params)
+         entry (get templates name ::unknown)]
      (when (= ::unknown entry)
        (spool/fail! "Unknown dresser template"
                     {:template name

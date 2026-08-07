@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+"""Validate the JSON ready frontier before a shell driver dispatches it."""
+
+import json
+import sys
+
+
+EXPECTED_ITEM_SCHEMA = (
+    "JSON object/mapping with required string fields id, role, and title; "
+    "optional gate must be absent, empty, or shell; extra fields are permitted"
+)
+ALLOWED_GATE_VALUES = "empty or shell"
+REQUIRED_FIELDS = ("id", "role", "title")
+
+
+def rendered(value):
+    try:
+        return json.dumps(value, separators=(",", ":"), sort_keys=True)
+    except (TypeError, ValueError):
+        return repr(value)
+
+
+def reject(message):
+    print(f"invalid ready frontier: {message}", file=sys.stderr)
+    raise SystemExit(1)
+
+
+def main():
+    if len(sys.argv) != 2:
+        print("usage: validate-ready-frontier JSON", file=sys.stderr)
+        return 2
+
+    raw = sys.argv[1]
+    try:
+        ready = json.loads(raw)
+    except (TypeError, ValueError) as error:
+        reject(
+            "observed payload {} is not valid JSON; expected a JSON list of "
+            "ready items; expected item schema: {}; allowed gate values: {} "
+            "({})".format(repr(raw), EXPECTED_ITEM_SCHEMA, ALLOWED_GATE_VALUES, error)
+        )
+
+    if not isinstance(ready, list):
+        reject(
+            "observed payload {}; expected a JSON list of ready items; expected "
+            "item schema: {}; allowed gate values: {}".format(
+                rendered(ready), EXPECTED_ITEM_SCHEMA, ALLOWED_GATE_VALUES
+            )
+        )
+
+    for index, item in enumerate(ready):
+        observed = rendered(item)
+        if not isinstance(item, dict):
+            reject(
+                "offending item at index {}: observed item: {}; expected item "
+                "schema: {}; allowed gate values: {}".format(
+                    index, observed, EXPECTED_ITEM_SCHEMA, ALLOWED_GATE_VALUES
+                )
+            )
+
+        missing = [field for field in REQUIRED_FIELDS if field not in item]
+        wrong_types = [
+            field for field in REQUIRED_FIELDS
+            if field in item and not isinstance(item[field], str)
+        ]
+        if missing or wrong_types:
+            details = []
+            if missing:
+                details.append("missing required fields: " + ", ".join(missing))
+            if wrong_types:
+                details.append("required fields with non-string values: " + ", ".join(wrong_types))
+            reject(
+                "offending item at index {}: observed item: {}; {}; expected item "
+                "schema: {}; allowed gate values: {}".format(
+                    index,
+                    observed,
+                    "; ".join(details),
+                    EXPECTED_ITEM_SCHEMA,
+                    ALLOWED_GATE_VALUES,
+                )
+            )
+
+        gate = item.get("gate", "")
+        if gate not in ("", "shell"):
+            reject(
+                "offending item at index {}: observed item: {}; gate {!r} is not "
+                "allowed; expected item schema: {}; allowed gate values: {}".format(
+                    index, observed, gate, EXPECTED_ITEM_SCHEMA, ALLOWED_GATE_VALUES
+                )
+            )
+
+    if len(ready) > 1:
+        reject(
+            "observed {} ready items {}; expected a frontier of 0 or 1 item; "
+            "expected item schema: {}; allowed gate values: {}".format(
+                len(ready), rendered(ready), EXPECTED_ITEM_SCHEMA, ALLOWED_GATE_VALUES
+            )
+        )
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

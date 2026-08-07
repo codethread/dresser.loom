@@ -1,0 +1,57 @@
+{
+  "card": "MSR-09",
+  "status": "proposed",
+  "repository": "codethread/dresser.spool",
+  "origin-repository": "codethread/dresser.loom",
+  "coordinate": "ct.spools/dresser",
+  "proposed-tag": "v4",
+  "previous-tag": "v3",
+  "core": {
+    "repository": "codethread/millstrand",
+    "coordinate": "io.millstrand/millstrand",
+    "ref-kind": "sha",
+    "sha": "5790c459e9bb692b5e975f9715df7d5b403feff2"
+  },
+  "verification": [
+    "make all",
+    "bin/identity-check",
+    "bin/verify-generated-repo --mode pre-tag --source-root \"$PWD\" --core-release release/msr04-release.json",
+    "bin/verify-generated-repo --mode published --repository https://github.com/codethread/dresser.spool.git --tag v4 --sha <published-sha> --core-release release/msr04-release.json"
+  ],
+  "evidence": {
+    "identity-check": {"result": "pass"},
+    "dresser-lifecycle": {
+      "result": "pass",
+      "flavours": ["spool-repo", "millstrand-dir"],
+      "aspects": [
+        "spool-repo/repo-skeleton",
+        "spool-repo/millstrand-workspace",
+        "spool-repo/agent-docs",
+        "spool-repo/quality",
+        "spool-repo/docs",
+        "spool-repo/ci",
+        "millstrand-dir/workspace",
+        "millstrand-dir/quality",
+        "millstrand-dir/agent-docs"
+      ],
+      "choices": "clean; pages-source=deferred",
+      "operations": ["plan", "start", "stamp", "plan", "verify"]
+    },
+    "generated-quality": {
+      "result": "pass",
+      "commands": ["make fmt-check", "make lint", "make test"]
+    },
+    "regeneration": {"result": "pass", "diff": "zero"},
+    "marker-equivalence": {
+      "result": "pass",
+      "default": ".millstrand",
+      "alias": ".ms",
+      "database": "same persisted database"
+    },
+    "repository-reconciliation": {
+      "card-target": "codethread/dresser.spool",
+      "current-origin": "codethread/dresser.loom",
+      "published-proof-repository": "https://github.com/codethread/dresser.spool.git"
+    }
+  }
+}

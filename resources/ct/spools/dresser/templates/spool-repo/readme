@@ -1,6 +1,6 @@
 # <name>.spool
 
-A shared Skein spool.
+A shared Millstrand spool.
 
 ## Prerequisites
 
@@ -8,8 +8,15 @@ Approve this spool and each prerequisite explicitly in the operator workspace.
 
 ## Dependency information
 
-Pin this repository in `.skein/spools.edn`; add all prerequisite coordinates beside it.
+Pin this repository and its prerequisites in `.millstrand/spools.edn` or
+`.ms/spools.edn`; exactly one of `.millstrand` or `.ms` may be present. For the
+authoritative receipt-selection rule, see [Dresser's Receipt, plan, verify, and
+stamp contract](https://github.com/codethread/dresser.spool/blob/main/dresser.md#receipt-plan-verify-and-stamp).
 
 ## Activation
 
 After approval, sync the operator runtime and activate `ct.spools.<name>`.
+
+## Development
+
+Local tests require an immutable Millstrand checkout at sibling `../millstrand` because the test alias uses `../millstrand/spools/workflow/src`; CI creates that layout.

@@ -8,11 +8,12 @@
                    :main-opts ["-m" "clj-kondo.main" "--lint" "src" "test"]}
   :lint/splint {:extra-deps {io.github.noahtheduke/splint {:mvn/version "1.21.0"}}
                 :main-opts ["-m" "noahtheduke.splint" "--output" "clj-kondo" "src" "test"]}
-  :test {:extra-paths ["test"]
-         ;; io.skein/skein exposes only Skein's base classpath (src/, batteries).
-         ;; The workflow engine and its shell executor live in a spool root off
-         ;; that classpath and join the test JVM as their own dep.
-         :extra-deps {io.skein/skein {:local/root "../skein-src"}
-                      io.skein/workflow-spool {:local/root "../skein-src/spools/workflow"}}
+  :test {:extra-paths ["test" "../millstrand/spools/workflow/src"]
+         ;; The published Millstrand core is consumed by immutable SHA. The
+         ;; workflow spool is a source root in that same checkout during local
+         ;; tests; it is not a published consumer override.
+         :extra-deps {io.millstrand/millstrand
+                      {:git/url "https://github.com/codethread/millstrand.git"
+                       :git/sha "5790c459e9bb692b5e975f9715df7d5b403feff2"}}
          :jvm-opts ["--enable-native-access=ALL-UNNAMED"]
          :main-opts ["-m" "ct.spools.dresser-test"]}}}

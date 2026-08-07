@@ -7,11 +7,11 @@
             [clojure.java.shell :as sh]
             [clojure.string :as str]
             [clojure.test :refer [deftest is run-tests testing]]
-            [skein.api.runtime.alpha :as runtime]
-            [skein.api.spool.alpha :as spool]
-            [skein.api.vocab.alpha :as vocab]
-            [skein.api.weaver.alpha :as weaver]
-            [skein.core.weaver.runtime :as weaver-runtime]
+            [millstrand.api.runtime.alpha :as runtime]
+            [millstrand.api.spool.alpha :as spool]
+            [millstrand.api.vocab.alpha :as vocab]
+            [millstrand.api.weaver.alpha :as weaver]
+            [millstrand.core.weaver.runtime :as weaver-runtime]
             [ct.spools.dresser :as dresser]
             [ct.spools.dresser.aspects :as aspects]
             [ct.spools.dresser-edges-test]
@@ -21,8 +21,8 @@
             [ct.spools.dresser.target :as target]
             [ct.spools.dresser.templates :as templates]
             [ct.spools.dresser.workflows :as dresser-workflows]
-            [skein.spools.workflow :as workflow]
-            [skein.test.alpha :as t])
+            [millstrand.spools.workflow :as workflow]
+            [millstrand.test.alpha :as t])
   (:import (java.nio.charset StandardCharsets)
            (java.nio.file Files Path)
            (java.nio.file.attribute FileAttribute)
@@ -44,11 +44,11 @@
          (f (:runtime ctx) (:config-dir ctx))))))
 
 (def expected-template-names
-  #{"skein/config.json"
-    "skein/spools.edn"
-    "skein/init-minimal.clj"
-    "skein/init-layered.clj"
-    "skein/gitignore"
+  #{"millstrand/config.json"
+    "millstrand/spools.edn"
+    "millstrand/init-minimal.clj"
+    "millstrand/init-layered.clj"
+    "millstrand/gitignore"
     "spool-repo/deps.edn"
     "spool-repo/src-ns.clj"
     "spool-repo/test-main.clj"
@@ -66,10 +66,10 @@
     "spool-repo/generate-api-docs.clj"
     "spool-repo/quality.yml"
     "spool-repo/pages.yml"
-    "skein-dir/deps.edn"
-    "skein-dir/makefile"
-    "skein-dir/agents.md"
-    "skein-dir/claude.md"})
+    "millstrand-dir/deps.edn"
+    "millstrand-dir/makefile"
+    "millstrand-dir/agents.md"
+    "millstrand-dir/claude.md"})
 
 (def parameterized-template-names
   #{"spool-repo/deps.edn"
@@ -112,6 +112,7 @@
   Templates declare which parameters they consume, so a template rendered with
   this map may ignore most of it, but none of them can be missing."
   {:name "acme"
+   :millstrand-sha "5790c459e9bb692b5e975f9715df7d5b403feff2"
    :repo-name "codethread/acme.spool"
    :git-branch "main"
    :site-name "acme.spool Docs"
@@ -131,8 +132,8 @@
 
 (deftest static-reference-template-is-exact
   (is (= "{\"configFormat\":\"alpha\"}\n"
-         (templates/template "skein/config.json")))
-  (is (str/includes? (templates/template "skein/gitignore") ".cpcache/\n")))
+         (templates/template "millstrand/config.json")))
+  (is (str/includes? (templates/template "millstrand/gitignore") ".cpcache/\n")))
 
 (def expected-template-hashes
   "SHA-256 of every template's canonical rendering, recorded before the templates
@@ -142,19 +143,19 @@
   here changes every release fingerprint derived from source and severs release
   lineage from its ground truth. Re-record a hash only alongside a deliberate
   aspect version and release-version bump."
-  {"skein/config.json" "1f1d316f79607c6e45befa3bce78dfc0cf9b9736a25af794850ade05d70b8008"
-   "skein/spools.edn" "2f87c8986925cdba240f5d31ecb05673a5fd04c44df0420677f301f3a5e4d7c9"
-   "skein/init-minimal.clj" "671fb527ce599b45496db6be98cc0dda20c641ab54b24c047c1114800d3a1afd"
-   "skein/init-layered.clj" "3415dbbcf8f1fffae148a46dbaec5d5ef760f85ec8168f545d04cc470f2d883d"
-   "skein/gitignore" "d8d19488fe52e731338acc28e1d719a7b23c170755450d813c42c245e1931f66"
-   "spool-repo/deps.edn" "4ada3c3b4c9456dab25b3c3ca1c367635bd5204c418076897d59b0cfd79a9d5e"
+  {"millstrand/config.json" "1f1d316f79607c6e45befa3bce78dfc0cf9b9736a25af794850ade05d70b8008"
+   "millstrand/spools.edn" "7bf8d08965e745a5a45696c04ff23dbbdab390a8c62b64bcca540aac0d5c1196"
+   "millstrand/init-minimal.clj" "d7b19c0f2868fa6fdf7fbf9d3db5a39faa90a9006eb1fb792f8b4e7f110db51e"
+   "millstrand/init-layered.clj" "3ce849d14f03afe1c690b57e80cfe32f2572aec2a955b7d10df43d4b90f5b596"
+   "millstrand/gitignore" "d8d19488fe52e731338acc28e1d719a7b23c170755450d813c42c245e1931f66"
+   "spool-repo/deps.edn" "f51e15419811334df4b0e55988e5b37f95a018570f246a075241178e406dc3fb"
    "spool-repo/src-ns.clj" "62e3d453dba6de042b886c1e569be9ca92051149e1fec5f697943a519e0ac86b"
    "spool-repo/test-main.clj" "17f97f5682347a75a725f4f82e72b472c43cf8a99820e60f1f11015d7839a6d6"
    "spool-repo/gitignore" "056f5cfa3c8446008026c3dac0e8d36c4dc5dae569d911447a611dd3b277cafa"
-   "spool-repo/readme" "dd70fc146737314982fcf295476c20ba6b84f0c44d975208365612c4d0063a07"
-   "spool-repo/agents.md" "16a7c20effaca2ce175a2c35aaabba9a404614fcfc7a3dc78682595441452d19"
+   "spool-repo/readme" "4940188eca75d07b967be78c40cb573de3fc7bb0eb069d04e2411ef4934fe04b"
+   "spool-repo/agents.md" "ce9b0f577499252e88d408ef04b2907e48d67e14a6e5f003960538136ad60be5"
    "spool-repo/cljfmt.edn" "ca9c9d6d0341cbe6cbad764ac82ac0ad306f925f145c490cfb83e2e06ef2a9c0"
-   "spool-repo/splint.edn" "60598258904b6de7290b043082941f56aa25595d0cde94a93e65a3dc29be8e79"
+   "spool-repo/splint.edn" "9e777a191b3aae2ef63d691430d4875a0cc43f2b7130874fed060e53c01bda94"
    "spool-repo/makefile" "811b289b4f701599523183f7c53df8f30184c4419483c1b17856bdbb3756b97e"
    "spool-repo/quality.mk" "23277f69afd856e58af1bc9d8710ba396b0b1304c90134cc1a4252c2f18800e1"
    "spool-repo/quality-aliases.edn" "0f6a74de4c653b713cd54095ce165b26e22583b21dc8c67ae16467efcb329781"
@@ -162,12 +163,12 @@
    "spool-repo/mkdocs-hooks.py" "0dd1baf0db0b6227cf71c425a58608dbab6e13a49948ff3de189536e5aa69df6"
    "spool-repo/mkdocs.yml" "ed209733435b83ea5867c7c984134c2d45cefeb06603140a54482e65d208bf27"
    "spool-repo/generate-api-docs.clj" "4a6e6212eefb4a8b1293e3d71325a11824be521e900d786ccd9d29d22fb07d11"
-   "spool-repo/quality.yml" "98c2687e86f98693c8a50002b5a0beb87be9d59f54ebe044a91f6ad3a3185c56"
+   "spool-repo/quality.yml" "d81e587536ed9ff09c77e55af12397eda358adfda2f9df50c19001dcd3581419"
    "spool-repo/pages.yml" "fc679d78c588d239c9f30620e6b538d3f9879d7dd4fe81e3798d5432bb8ac6ae"
-   "skein-dir/deps.edn" "510249ea4b5005a42495aab90264e30f526f958e2ad07b02055ae230f228e5a9"
-   "skein-dir/makefile" "913ec67cf6b6b1cd100bbf75abb812ce05087afbe9bc6f16298dd18303dd9418"
-   "skein-dir/agents.md" "db629e70a4a7ef1c8dfb1767ce0e4bf9ef1d98f54c164cdc8175aa0c525b1fa4"
-   "skein-dir/claude.md" "5a9c71bcb5518b581040eaf3a2b5d1270abdbaf4f16bd4a8df6bc7092ea4b956"})
+   "millstrand-dir/deps.edn" "510249ea4b5005a42495aab90264e30f526f958e2ad07b02055ae230f228e5a9"
+   "millstrand-dir/makefile" "913ec67cf6b6b1cd100bbf75abb812ce05087afbe9bc6f16298dd18303dd9418"
+   "millstrand-dir/agents.md" "6c5246e8bbb15a546bbf3b64658d7b2d42e3764d1b8c3cb67cbae5691b7e941e"
+   "millstrand-dir/claude.md" "b522bb280d94c7342b986727501f88e80d2c9984e9e16d7a43f598ea2e3657a3"})
 
 (defn- sha-256-hex [^String content]
   (let [digest (.digest (MessageDigest/getInstance "SHA-256")
@@ -196,15 +197,28 @@
   (let [unknown (thrown-data #(templates/template "not-a-template"))
         missing (thrown-data #(templates/template "spool-repo/deps.edn"))
         partial (thrown-data #(templates/template "spool-repo/mkdocs.yml"
-                                                  {:name "acme"}))]
+                                                  {:name "acme"}))
+        quality-blank-name (thrown-exception #(templates/template "spool-repo/quality.yml"
+                                                                  {:name " "
+                                                                   :millstrand-sha
+                                                                   "5790c459e9bb692b5e975f9715df7d5b403feff2"}))
+        quality-invalid-sha (thrown-exception #(templates/template "spool-repo/quality.yml"
+                                                                   {:name "acme"
+                                                                    :millstrand-sha "not-a-sha"}))]
     (is (= "not-a-template" (:template unknown)))
-    (is (contains? (:known unknown) "skein/config.json"))
+    (is (contains? (:known unknown) "millstrand/config.json"))
     (is (= "spool-repo/deps.edn" (:template missing)))
     (is (= :name (:required missing)))
     (is (= {} (:params missing)))
     ;; A template consuming more than :name names the parameter it is short of,
     ;; rather than emitting an unsubstituted placeholder into an owned file.
-    (is (= :repo-name (:required partial)))))
+    (is (= :repo-name (:required partial)))
+    (is (= "Dresser template input has an invalid shape"
+           (ex-message quality-blank-name)))
+    (is (= "Dresser template input has an invalid shape"
+           (ex-message quality-invalid-sha)))
+    (is (some? (get-in (ex-data quality-invalid-sha)
+                       [:explain :clojure.spec.alpha/problems])))))
 
 (deftest template-lines-fit-review-width
   (doseq [[template-name entry] templates/templates
@@ -217,7 +231,7 @@
   {"spool-repo/repo-skeleton"
    {:setup [:write-deps :write-src-test :write-readme :write-gitignore]
     :gates [:test-suite :readme-sections]}
-   "spool-repo/skein-workspace"
+   "spool-repo/millstrand-workspace"
    {:setup [:write-workspace] :gates [:workspace-files]}
    "spool-repo/agent-docs"
    {:setup [:write-agents-md] :gates [:agents-md]}
@@ -230,29 +244,29 @@
    {:setup [:write-workflows]
     :checkpoints [:pages-source]
     :gates [:workflow-files :workflow-targets]}
-   "skein-dir/workspace"
+   "millstrand-dir/workspace"
    {:setup [:write-workspace] :gates [:workspace-files :init-header]}
-   "skein-dir/quality"
+   "millstrand-dir/quality"
    {:setup [:write-quality-tooling] :gates [:fmt-check :lint]}
-   "skein-dir/agent-docs"
+   "millstrand-dir/agent-docs"
    {:setup [:write-agent-docs] :gates [:agent-docs-files]}})
 
 (deftest aspect-registry-is-valid
   (is (= (set (keys expected-aspect-ids)) (set (keys aspects/registry))))
-  (is (= {"spool-repo/repo-skeleton" 4
-          "spool-repo/skein-workspace" 3
+  (is (= {"spool-repo/repo-skeleton" 7
+          "spool-repo/millstrand-workspace" 3
           "spool-repo/agent-docs" 1
           "spool-repo/quality" 3
           "spool-repo/docs" 1
           "spool-repo/ci" 1
-          "skein-dir/workspace" 3
-          "skein-dir/quality" 2
-          "skein-dir/agent-docs" 1}
+          "millstrand-dir/workspace" 3
+          "millstrand-dir/quality" 2
+          "millstrand-dir/agent-docs" 1}
          (into {} (map (fn [[key entry]] [key (:version entry)])) aspects/registry)))
   (doseq [[aspect-key entry] aspects/registry
           :let [[_ flavour aspect-name] (re-matches #"([^/]+)/([^/]+)" aspect-key)]]
     (testing aspect-key
-      (is (#{"spool-repo" "skein-dir"} flavour))
+      (is (#{"spool-repo" "millstrand-dir"} flavour))
       (is (some? aspect-name))
       (is (integer? (:version entry)))
       (is (= (get expected-aspect-ids aspect-key)
@@ -271,13 +285,13 @@
 
 (deftest aspect-ordering-and-dependency-closure
   (let [spool-order (aspects/flavour-aspects "spool-repo")
-        skein-order (aspects/flavour-aspects "skein-dir")]
+        millstrand-order (aspects/flavour-aspects "millstrand-dir")]
     (is (< (.indexOf spool-order "spool-repo/repo-skeleton")
            (.indexOf spool-order "spool-repo/quality")))
-    (is (< (.indexOf skein-order "skein-dir/workspace")
-           (.indexOf skein-order "skein-dir/quality")))
-    (is (< (.indexOf skein-order "skein-dir/workspace")
-           (.indexOf skein-order "skein-dir/agent-docs"))))
+    (is (< (.indexOf millstrand-order "millstrand-dir/workspace")
+           (.indexOf millstrand-order "millstrand-dir/quality")))
+    (is (< (.indexOf millstrand-order "millstrand-dir/workspace")
+           (.indexOf millstrand-order "millstrand-dir/agent-docs"))))
   (is (= ["spool-repo/repo-skeleton" "spool-repo/quality"]
          (aspects/close-under-deps "spool-repo" ["spool-repo/quality"])))
   (is (= "missing" (:aspect (thrown-data
@@ -436,7 +450,7 @@
       (let [params {:root "/tmp/x"}
             full (workflow/describe :spool-repo params)
             subset-definition (dresser-workflows/flavour-workflow
-                               "spool-repo" ["spool-repo/skein-workspace"])
+                               "spool-repo" ["spool-repo/millstrand-workspace"])
             subset (workflow/describe subset-definition params)
             verify (workflow/describe subset-definition
                                       (assoc params :verify-only true))
@@ -451,18 +465,18 @@
                                                  (:gates (aspects/aspect aspect-key))))))
                                 (aspects/flavour-aspects "spool-repo"))]
         (is (= expected-full full-gates))
-        (is (= #{:skein-workspace--workspace-files} subset-gates))
-        (is (= #{:skein-workspace--workspace-files :skein-workspace}
+        (is (= #{:millstrand-workspace--workspace-files} subset-gates))
+        (is (= #{:millstrand-workspace--workspace-files :millstrand-workspace}
                (set (map :id (:steps verify)))))
-        (is (= #{:skein-workspace--inspect
-                 :skein-workspace--conflict
-                 :skein-workspace--write-workspace
-                 :skein-workspace--workspace-files
-                 :skein-workspace}
+        (is (= #{:millstrand-workspace--inspect
+                 :millstrand-workspace--conflict
+                 :millstrand-workspace--write-workspace
+                 :millstrand-workspace--workspace-files
+                 :millstrand-workspace}
                (set (map :id (:steps subset)))))
         (let [payload (workflow/compile subset-definition params)
               root (first (:strands payload))
-              gate (some #(when (= :skein-workspace--workspace-files (:ref %)) %)
+              gate (some #(when (= :millstrand-workspace--workspace-files (:ref %)) %)
                          (:strands payload))]
           (is (= {"dresser/flavour" "spool-repo"
                   "dresser/root" "/tmp/x"}
@@ -523,7 +537,7 @@
   ;; Umbrellas begin runs, the abort stage is only ever routed to, and an aspect
   ;; is only ever expanded inline by its umbrella.
   (is (= #{:start} (:entrypoints (registered-definition :spool-repo))))
-  (is (= #{:start} (:entrypoints (registered-definition :skein-dir))))
+  (is (= #{:start} (:entrypoints (registered-definition :millstrand-dir))))
   (is (= #{:continue} (:entrypoints (registered-definition :abort))))
   (doseq [aspect-key (keys aspects/registry)]
     (is (= #{:call}
@@ -588,7 +602,7 @@
       (is (re-matches #"dresser-spool-repo-alpha-[0-9a-f]{8}" setup))
       (is (re-matches #"dresser-verify-spool-repo-alpha-[0-9a-f]{8}" verify))
       (is (not= setup verify))
-      (is (not= setup (target/run-id "skein-dir" root-a)))
+      (is (not= setup (target/run-id "millstrand-dir" root-a)))
       (is (not= setup (target/run-id "spool-repo" root-b))))))
 
 (deftest receipt-codec-round-trips-and-rejects-invalid-data
@@ -600,12 +614,38 @@
       (is (nil? (receipt/read-receipt root)))
       (is (= value (receipt/write-receipt! root value)))
       (is (= value (receipt/read-receipt root))))
-    (spit (io/file (.toFile root) ".skein" "conventions.edn") "[")
+    (spit (io/file (.toFile root) ".millstrand" "conventions.edn") "[")
     (is (= :invalid-edn (:reason (thrown-data #(receipt/read-receipt root)))))
-    (spit (io/file (.toFile root) ".skein" "conventions.edn") "[]")
+    (spit (io/file (.toFile root) ".millstrand" "conventions.edn") "[]")
     (let [data (thrown-data #(receipt/read-receipt root))]
       (is (= :invalid-shape (:reason data)))
       (is (map? (:explain data))))))
+
+(deftest ms-receipt-path-is-equivalent-to-millstrand
+  (with-temp-dir [root]
+    (let [value {:dresser/release 1
+                 :dresser/fingerprint "alias"
+                 :aspects {}}
+          alias (io/file (.toFile root) ".ms")]
+      (.mkdirs alias)
+      (is (= value (receipt/write-receipt! root value)))
+      (is (= value (receipt/read-receipt root)))
+      (is (.exists (io/file alias "conventions.edn")))
+      (is (not (.exists (io/file (.toFile root) ".millstrand")))))))
+
+(deftest receipt-selection-fails-loudly-when-both-workspace-markers-exist
+  (with-temp-dir [root]
+    (.mkdirs (io/file (.toFile root) ".millstrand"))
+    (.mkdirs (io/file (.toFile root) ".ms"))
+    (doseq [operation [#(receipt/read-receipt root)
+                       #(receipt/write-receipt! root {:dresser/release 1
+                                                      :dresser/fingerprint "ambiguous"
+                                                      :aspects {}})]]
+      (let [data (thrown-data operation)]
+        (is (= :ambiguous-workspace (:reason data)))
+        (is (= [(str (io/file (.toFile root) ".millstrand"))
+                (str (io/file (.toFile root) ".ms"))]
+               (:workspace-markers data)))))))
 
 (deftest malformed-receipt-plan-input-yields-structured-spec-error
   (let [malformed {:dresser/fingerprint "release-one"
@@ -633,7 +673,7 @@
                                       (throw (RuntimeException. "move failed"))))))
       (is (= previous (receipt/read-receipt root)))
       (is (= #{"conventions.edn"}
-             (set (map #(.getName %) (.listFiles (io/file (.toFile root) ".skein")))))))))
+             (set (map #(.getName %) (.listFiles (io/file (.toFile root) ".millstrand")))))))))
 
 (deftest merge-aspect-records-explicit-provenance
   (is (= {:dresser/release 3
@@ -792,8 +832,8 @@
           (workflow/register-executor! :shell (constantly nil))
           (fixtures/activate-dresser! runtime)
           (weaver/op! runtime 'dresser
-                      ["start" "skein-dir" (str root)
-                       "--aspects" "skein-dir/agent-docs"])
+                      ["start" "millstrand-dir" (str root)
+                       "--aspects" "millstrand-dir/agent-docs"])
           (is (= (set (keys dresser-workflows/workflow-definitions))
                  (set (keys (workflow/workflows)))))
           (let [result (runtime/refresh! runtime)]
@@ -814,7 +854,7 @@
                                  ["template" "spool-repo/deps.edn"
                                   "--param" "name=acme"])]
         (is (= #{:receipt :plan :verify :stamp} (set (keys (:semantics about)))))
-        (is (= #{"spool-repo" "skein-dir"} (set (keys (:flavours about)))))
+        (is (= #{"spool-repo" "millstrand-dir"} (set (keys (:flavours about)))))
         (is (seq (:quickstart about)))
         (is (= aspects/release-version (:release registry)))
         (is (= (aspects/releases aspects/release-version) (:fingerprint registry)))
@@ -915,26 +955,26 @@
         (fn [runtime]
           (fixtures/activate-dresser! runtime)
           (let [setup (weaver/op! runtime 'dresser
-                                  ["start" "skein-dir" (str root)
-                                   "--aspects" "skein-dir/agent-docs"])
+                                  ["start" "millstrand-dir" (str root)
+                                   "--aspects" "millstrand-dir/agent-docs"])
                 setup-ready (weaver/op! runtime 'dresser
-                                        ["next" "skein-dir" (str root)])]
+                                        ["next" "millstrand-dir" (str root)])]
             (is (= (:ready setup) setup-ready))
             (is (= 1 (count setup-ready)))
             (is (str/starts-with? (:title (first setup-ready)) "Inspect "))
             (is (= :active-run
                    (let [data (thrown-data
                                #(weaver/op! runtime 'dresser
-                                            ["start" "skein-dir" (str root)]))]
-                     (when (= (target/run-id "skein-dir" root) (:run-id data))
+                                            ["start" "millstrand-dir" (str root)]))]
+                     (when (= (target/run-id "millstrand-dir" root) (:run-id data))
                        :active-run))))
             (weaver/op! runtime 'dresser
-                        ["advance" "skein-dir" (str root)
+                        ["advance" "millstrand-dir" (str root)
                          "--step" (:id (first setup-ready))])
             (let [checkpoint (first (weaver/op! runtime 'dresser
-                                                ["next" "skein-dir" (str root)]))
+                                                ["next" "millstrand-dir" (str root)]))
                   after-choice (weaver/op! runtime 'dresser
-                                           ["advance" "skein-dir" (str root)
+                                           ["advance" "millstrand-dir" (str root)
                                             "--step" (:id checkpoint)
                                             "--choice" "apply-plan"
                                             "--input" "decisions=replace"])]
@@ -942,25 +982,25 @@
               (is (= "Write layered workspace"
                      (get-in after-choice [:ready 0 :title]))))
             (let [verify (weaver/op! runtime 'dresser
-                                     ["verify" "skein-dir" (str root)
-                                      "--aspects" "skein-dir/agent-docs"])
+                                     ["verify" "millstrand-dir" (str root)
+                                      "--aspects" "millstrand-dir/agent-docs"])
                   verify-ready (weaver/op! runtime 'dresser
-                                           ["next" "skein-dir" (str root) "--verify"])]
+                                           ["next" "millstrand-dir" (str root) "--verify"])]
               (is (= (:ready verify) verify-ready))
               (is (= #{"shell"} (set (map :gate verify-ready))))
-              (is (not= (target/run-id "skein-dir" root)
-                        (target/verify-run-id "skein-dir" root))))
+              (is (not= (target/run-id "millstrand-dir" root)
+                        (target/verify-run-id "millstrand-dir" root))))
             (is (= "unknown"
                    (:aspect (thrown-data
                              #(weaver/op! runtime 'dresser
-                                          ["verify" "skein-dir" (str root)
+                                          ["verify" "millstrand-dir" (str root)
                                            "--aspects" "unknown"])))))))))))
 
 (deftest this-repo-passes-non-recursive-self-hosting-verification
   ;; repo-skeleton would recurse through clojure -M:test. quality and
   ;; repo-skeleton are covered directly by make fmt-check lint test instead.
   (let [root (.getCanonicalPath (io/file "."))
-        selected "spool-repo/skein-workspace,spool-repo/agent-docs"
+        selected "spool-repo/millstrand-workspace,spool-repo/agent-docs"
         run-id (target/verify-run-id "spool-repo" root)]
     (fixtures/with-dresser-runtime
       (fn [runtime _]
@@ -969,7 +1009,7 @@
         (fixtures/assert-done! (fixtures/wait-for-attention! runtime run-id))
         (let [gates (filterv #(= "shell" (spool/attr-get % :workflow/gate))
                              (fixtures/latest-molecule-strands runtime run-id))]
-          (is (= #{"spool-repo/skein-workspace" "spool-repo/agent-docs"}
+          (is (= #{"spool-repo/millstrand-workspace" "spool-repo/agent-docs"}
                  (set (map #(spool/attr-get % :dresser/aspect) gates))))
           (is (every? #(= "closed" (:state %)) gates))
           (is (every? #(= "shell" (spool/attr-get % :workflow/outcome-by)) gates))
@@ -996,8 +1036,8 @@
 (deftest stamp-refuses-missing-expected-gate
   (fixtures/with-temp-dir [parent]
     (let [root (fixtures/git-init-root! parent "missing-gate")
-          aspect-key "skein-dir/workspace"
-          run-id (target/run-id "skein-dir" root)
+          aspect-key "millstrand-dir/workspace"
+          run-id (target/run-id "millstrand-dir" root)
           only-gate [(first (:gates (aspects/aspect aspect-key)))]]
       (with-runtime-without-shell
         (fn [_]
@@ -1013,8 +1053,8 @@
 (deftest stamp-refuses-gate-id-mismatch-even-when-title-matches
   (fixtures/with-temp-dir [parent]
     (let [root (fixtures/git-init-root! parent "wrong-gate-id")
-          aspect-key "skein-dir/agent-docs"
-          run-id (target/run-id "skein-dir" root)
+          aspect-key "millstrand-dir/agent-docs"
+          run-id (target/run-id "millstrand-dir" root)
           expected-gate (first (:gates (aspects/aspect aspect-key)))
           wrong-gate [(assoc expected-gate :id :old-agent-docs-files)]]
       (with-runtime-without-shell
@@ -1033,7 +1073,7 @@
 (deftest stamp-without-setup-history-is-structured-evidence-failure
   (fixtures/with-temp-dir [parent]
     (let [root (fixtures/git-init-root! parent "no-history")
-          aspect-key "skein-dir/agent-docs"]
+          aspect-key "millstrand-dir/agent-docs"]
       (with-runtime-without-shell
         (fn [_]
           (let [exception (thrown-exception #(dresser/stamp! aspect-key root))
@@ -1041,15 +1081,15 @@
             (is (str/includes? (ex-message exception) "stamp evidence failed"))
             (is (nil? (:molecule data)))
             (is (= [{:violation :missing-molecule
-                     :run-id (target/run-id "skein-dir" root)}]
+                     :run-id (target/run-id "millstrand-dir" root)}]
                    (:violations data)))
             (is (nil? (receipt/read-receipt root)))))))))
 
 (deftest stamp-refuses-force-closed-gate
   (fixtures/with-temp-dir [parent]
     (let [root (fixtures/git-init-root! parent "human-gate")
-          aspect-key "skein-dir/agent-docs"
-          run-id (target/run-id "skein-dir" root)
+          aspect-key "millstrand-dir/agent-docs"
+          run-id (target/run-id "millstrand-dir" root)
           gates (:gates (aspects/aspect aspect-key))]
       (with-runtime-without-shell
         (fn [_]
@@ -1064,18 +1104,18 @@
                    (:actual (some #(when (= :outcome-by (:violation %)) %)
                                   (:violations data)))))))))))
 
-(deftest skein-dir-e2e-stamps-all-aspects-without-touching-host-tree
+(deftest millstrand-dir-e2e-stamps-all-aspects-without-touching-host-tree
   (fixtures/with-temp-dir [parent]
-    (let [root (fixtures/git-init-root! parent "skein-dir")]
+    (let [root (fixtures/git-init-root! parent "millstrand-dir")]
       (spit (.toFile (.resolve root "HOST.txt")) "host-owned\n")
-      (let [before (fixtures/snapshot-outside-skein root)]
+      (let [before (fixtures/snapshot-outside-millstrand root)]
         (with-runtime
           (fn [runtime _]
             (fixtures/activate-dresser! runtime)
-            (weaver/op! runtime 'dresser ["start" "skein-dir" (str root)])
-            (let [state (fixtures/drive-skein-dir! runtime root)]
+            (weaver/op! runtime 'dresser ["start" "millstrand-dir" (str root)])
+            (let [state (fixtures/drive-millstrand-dir! runtime root)]
               (is (= :done (:reason state)) (pr-str state)))
-            (doseq [aspect-key (aspects/flavour-aspects "skein-dir")]
+            (doseq [aspect-key (aspects/flavour-aspects "millstrand-dir")]
               (let [result (weaver/op! runtime 'dresser
                                        ["stamp" aspect-key (str root)])]
                 (is (= aspect-key (:aspect result)))
@@ -1087,35 +1127,35 @@
               (is (= aspects/release-version (:dresser/release stamp)))
               (is (= (aspects/releases aspects/release-version)
                      (:dresser/fingerprint stamp)))
-              (is (= (set (aspects/flavour-aspects "skein-dir"))
+              (is (= (set (aspects/flavour-aspects "millstrand-dir"))
                      (set (keys (:aspects stamp)))))
               (is (every? #{:current}
                           (map (:aspects planned)
-                               (aspects/flavour-aspects "skein-dir")))))))
-        (is (= before (fixtures/snapshot-outside-skein root)))))))
+                               (aspects/flavour-aspects "millstrand-dir")))))))
+        (is (= before (fixtures/snapshot-outside-millstrand root)))))))
 
 (deftest red-gate-recovery-refuses-old-green-evidence-then-stamps
   (fixtures/with-temp-dir [parent]
     (let [root (fixtures/git-init-root! parent "recovery")
-          aspect-key "skein-dir/workspace"]
+          aspect-key "millstrand-dir/workspace"]
       (with-runtime
         (fn [runtime _]
           (fixtures/activate-dresser! runtime)
           (weaver/op! runtime 'dresser
-                      ["start" "skein-dir" (str root)
+                      ["start" "millstrand-dir" (str root)
                        "--aspects" aspect-key])
-          (let [state (fixtures/drive-skein-dir! runtime root)]
+          (let [state (fixtures/drive-millstrand-dir! runtime root)]
             (is (= :done (:reason state)) (pr-str state)))
           (is (= :current (:plan (dresser/stamp! aspect-key root))))
           (weaver/op! runtime 'dresser
-                      ["start" "skein-dir" (str root)
+                      ["start" "millstrand-dir" (str root)
                        "--aspects" aspect-key])
-          (let [state (fixtures/drive-skein-dir!
+          (let [state (fixtures/drive-millstrand-dir!
                        runtime root
                        {:before-advance
                         (fn [step]
                           (when (= "Write layered workspace" (:title step))
-                            (spit (io/file (str root) ".skein" "init.clj")
+                            (spit (io/file (str root) ".millstrand" "init.clj")
                                   ";; deliberately broken\n")))})
                 failed-gate (:gate state)
                 refusal (thrown-data #(dresser/stamp! aspect-key root))]
@@ -1128,7 +1168,7 @@
             ;; nil-patch removal, not a blank overwrite.
             (weaver/update! runtime (:id failed-gate)
                             {:attributes {"gate/error" nil}})
-            (is (= :done (:reason (fixtures/drive-skein-dir! runtime root))))
+            (is (= :done (:reason (fixtures/drive-millstrand-dir! runtime root))))
             (is (= :current (:plan (dresser/stamp! aspect-key root))))))))))
 
 (defn -main
